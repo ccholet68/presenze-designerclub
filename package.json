@@ -1,0 +1,9 @@
+{
+  "name": "presenze-designerclub",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-react": "^7.23.0"
+  }
+}
