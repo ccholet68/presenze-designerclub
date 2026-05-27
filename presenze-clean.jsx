@@ -312,7 +312,7 @@ function PresentMensile({ T, people, depts, records, orari, setOrari }) {
                     </div>
                   </div>
                   <div style={{marginTop:8,fontSize:11,color:d.color,fontWeight:600}}>
-                    ℹ️ Regola aziendale: 2 pause da 5 min (mattina e pomeriggio) sempre retribuite e non dedotte. Solo la pausa pranzo (>5 min) viene dedotta.
+                    ℹ️ Regola aziendale: 2 pause da 5 min (mattina e pomeriggio) sempre retribuite e non dedotte. Solo la pausa pranzo (&gt;5 min) viene dedotta.
                   </div>
                 </div>
               );
@@ -1699,6 +1699,7 @@ function App() {
                     {lbl}
                   </button>
                 ))}
+                </div>
               </div>
 
               {/* Griglia 2 per riga, ordine alfabetico */}
@@ -2712,30 +2713,6 @@ function App() {
             </div>
           )}
 
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
         </main>
       </div>
     </div>
