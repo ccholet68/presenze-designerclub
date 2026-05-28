@@ -74,6 +74,25 @@ async function sendEmailJS(to, subject, messaggio) {
   if (!res.ok) throw new Error(await res.text());
 }
 
+// Template dedicato alla notifica di cambio PIN
+const EMAILJS_TEMPLATE_PIN = "template_r4bom4s";
+
+async function sendEmailCambioPin(to, vecchioPin, nuovoPin) {
+  const url = "https://api.emailjs.com/api/v1.0/email/send";
+  const dataOra = new Date().toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short" });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id:  EMAILJS_SERVICE,
+      template_id: EMAILJS_TEMPLATE_PIN,
+      user_id:     EMAILJS_KEY,
+      template_params: { to_email: to, vecchio_pin: vecchioPin, nuovo_pin: nuovoPin, data_ora: dataOra },
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
 // ── Tipi persona ────────────────────────────────────────────────
 const PERSON_TYPES = [
   { id: "dipendente", label: "Dipendente", icon: "👤", color: "#4361ee" },
@@ -981,6 +1000,7 @@ function App() {
   const [searchQ, setSearchQ] = useState("");
   const [screen, setScreen] = useState("login"); // login | welcome | app
   const [pinAziendale, setPinAziendale] = useState("1234"); // PIN modificabile da Admin
+  const [emailAdmin, setEmailAdmin] = useState(""); // email amministratore per notifiche
   const [loginCodice, setLoginCodice] = useState("");
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -1022,6 +1042,16 @@ function App() {
         const r1 = localStorage.getItem("dc_records"); if (r1) setRecords(JSON.parse(r1));
         const r2 = localStorage.getItem("dc_visitatori"); if (r2) setVisitatori(JSON.parse(r2));
         const r3 = localStorage.getItem("dc_people_extra"); if (r3) { const extra = JSON.parse(r3); setPeople(prev => { const existingIds = new Set(prev.map(p=>p.id)); return [...prev, ...extra.filter(p=>!existingIds.has(p.id))]; }); } } catch(e) { console.log("Storage vuoto o errore:", e); }
+      // Carica impostazioni condivise da Supabase (PIN ed email admin)
+      try {
+        const imp = await sb.select("impostazioni", { select: "chiave,valore" });
+        if (Array.isArray(imp)) {
+          const pin = imp.find(x => x.chiave === "pin_aziendale");
+          if (pin?.valore) setPinAziendale(pin.valore);
+          const em = imp.find(x => x.chiave === "email_admin");
+          if (em?.valore) setEmailAdmin(em.valore);
+        }
+      } catch(e) { console.warn("Errore caricamento impostazioni:", e); }
       setStorageReady(true);
     }
     load();
@@ -2261,17 +2291,43 @@ function App() {
                     <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN aziendale attuale</div>
                     <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinAziendale.length)}</div>
                   </div>
-                  <button className="btn" onClick={()=>{
+                  <button className="btn" onClick={async ()=>{
                     const newPin=window.prompt("Inserisci il nuovo PIN aziendale (solo numeri, min 4 cifre):");
                     if(!newPin) return;
                     if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    const vecchioPin = pinAziendale;
                     setPinAziendale(newPin);
                     sb.upsert("impostazioni", {chiave:"pin_aziendale", valore:newPin}).catch(()=>{});
-                    alert("✅ PIN aggiornato con successo!");
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN:", e);
+                        alert("✅ PIN aggiornato, ma l'invio dell'email è fallito. Controlla l'indirizzo amministratore.");
+                      }
+                    } else {
+                      alert("✅ PIN aggiornato! (Nessuna email amministratore impostata: notifica non inviata.)");
+                    }
                   }}
                     style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
                     🔑 Cambia PIN
                   </button>
+                </div>
+                {/* Email amministratore per notifiche */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:4}}>Email amministratore</div>
+                    <input type="email" defaultValue={emailAdmin} placeholder="nome@azienda.com"
+                      onBlur={e=>{
+                        const val=e.target.value.trim();
+                        if(val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)){alert("Email non valida.");return;}
+                        setEmailAdmin(val);
+                        sb.upsert("impostazioni", {chiave:"email_admin", valore:val}).catch(()=>{});
+                      }}
+                      style={{width:200,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:14,padding:"7px 10px",outline:"none"}}/>
+                    <div style={{fontSize:11,color:T.muted,marginTop:4}}>Riceve la notifica al cambio del PIN. Si salva automaticamente.</div>
+                  </div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
                   {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"]].map(([id,lbl])=>(
