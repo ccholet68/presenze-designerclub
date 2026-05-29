@@ -54,6 +54,17 @@ const sb = {
   async delete(table, params) { return this.query('DELETE', table, null, params); },
 };
 
+// Normalizza qualsiasi valore colore in un #rrggbb valido per <input type="color">
+// (evita l'avviso "value does not conform to #rrggbb" su valori vuoti o non esadecimali)
+function safeColor(c, fallback = "#000000") {
+  if (typeof c !== "string") return fallback;
+  let v = c.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v;                          // già valido
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) return "#" + v.slice(1).split("").map(x=>x+x).join(""); // #abc -> #aabbcc
+  if (/^#[0-9a-fA-F]{8}$/.test(v)) return v.slice(0,7);               // #rrggbbaa -> #rrggbb
+  return fallback;
+}
+
 // ── EmailJS ──────────────────────────────────────────────────────
 const EMAILJS_SERVICE  = "service_1djpbpr";
 const EMAILJS_TEMPLATE = "template_p5qr5bv";
@@ -533,7 +544,7 @@ function ColorRow({ label, value, onChange, T }) {
         <span style={{fontSize:12,color:T.textMuted,fontFamily:"monospace"}}>{value}</span>
         <div style={{position:"relative",width:30,height:30}}>
           <div style={{width:30,height:30,borderRadius:8,background:value,border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-          <input type="color" value={value} onChange={e=>onChange(e.target.value)}
+          <input type="color" value={safeColor(value)} onChange={e=>onChange(e.target.value)}
             style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",border:"none"}}/>
         </div>
       </div>
@@ -954,7 +965,7 @@ function DeptsModal({ T, depts, setDepts, onClose }) {
           <div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
             <div style={{position:"relative",width:28,height:28,flexShrink:0}}>
               <div style={{width:28,height:28,borderRadius:6,background:d.color,border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-              <input type="color" value={d.color} onChange={e=>updateColor(d.id,e.target.value)}
+              <input type="color" value={safeColor(d.color)} onChange={e=>updateColor(d.id,e.target.value)}
                 style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
             </div>
             <input value={d.name} onChange={e=>updateName(d.id,e.target.value)}
@@ -967,7 +978,7 @@ function DeptsModal({ T, depts, setDepts, onClose }) {
         <div style={{display:"flex",gap:8,marginTop:16,alignItems:"center"}}>
           <div style={{position:"relative",width:28,height:28,flexShrink:0}}>
             <div style={{width:28,height:28,borderRadius:6,background:newColor,border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-            <input type="color" value={newColor} onChange={e=>setNewColor(e.target.value)}
+            <input type="color" value={safeColor(newColor)} onChange={e=>setNewColor(e.target.value)}
               style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
           </div>
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nuovo reparto..."
@@ -1930,6 +1941,46 @@ function App() {
                 ))}
               </div>
 
+              {/* Backup completo del sistema (JSON) */}
+              <div style={{background:T.surface,border:`2px solid ${T.accent}`,borderRadius:12,padding:"18px 22px",marginBottom:24,display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
+                <div style={{fontSize:38}}>💾</div>
+                <div style={{flex:1,minWidth:240}}>
+                  <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:4}}>Backup completo del sistema</div>
+                  <div style={{fontSize:13,color:T.textMuted,lineHeight:1.5}}>
+                    Scarica <strong>tutti</strong> i dati dell'app in un singolo file (dipendenti, presenze, archivio, visitatori, impostazioni). Consigliato almeno una volta al mese — conservalo su Google Drive o disco aziendale.
+                  </div>
+                </div>
+                <button className="btn" onClick={()=>{
+                  try {
+                    const backup = {
+                      _meta: {
+                        app: "Presenze Designer Club Srl",
+                        version: APP_VERSION,
+                        export_date: new Date().toISOString(),
+                        export_date_human: new Date().toLocaleString("it-IT"),
+                      },
+                      people, depts, records, presenzeMese, orari,
+                      visitatori, visitorDB,
+                      impostazioni: { pin_aziendale: pinAziendale, email_admin: emailAdmin },
+                      tema: { theme, sidebarBg, welcomeBg },
+                      mailList,
+                    };
+                    const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+                    a.href = url; a.download = `backup-presenze-${ts}.json`;
+                    document.body.appendChild(a); a.click();
+                    document.body.removeChild(a); URL.revokeObjectURL(url);
+                  } catch(e) {
+                    alert("Errore durante l'esportazione: " + e.message);
+                  }
+                }}
+                  style={{padding:"12px 22px",background:T.accent,color:"#fff",border:"none",fontSize:14,fontWeight:700,whiteSpace:"nowrap"}}>
+                  💾 Scarica backup completo
+                </button>
+              </div>
+
               {/* Anteprima ultimi giorni */}
               <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden"}}>
                 <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,fontSize:14,fontWeight:700,color:T.text}}>
@@ -2394,7 +2445,7 @@ function App() {
                         <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{T[k]}</span>
                         <div style={{position:"relative",width:30,height:30}}>
                           <div style={{width:30,height:30,borderRadius:8,background:T[k],border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-                          <input type="color" value={T[k]} onChange={e=>setTheme(prev=>({...prev,[k]:e.target.value}))}
+                          <input type="color" value={safeColor(T[k])} onChange={e=>setTheme(prev=>({...prev,[k]:e.target.value}))}
                             style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
                         </div>
                       </div>
@@ -2411,7 +2462,7 @@ function App() {
                         <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{T[k]}</span>
                         <div style={{position:"relative",width:30,height:30}}>
                           <div style={{width:30,height:30,borderRadius:8,background:T[k],border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-                          <input type="color" value={T[k]} onChange={e=>setTheme(prev=>({...prev,[k]:e.target.value}))}
+                          <input type="color" value={safeColor(T[k])} onChange={e=>setTheme(prev=>({...prev,[k]:e.target.value}))}
                             style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
                         </div>
                       </div>
@@ -2433,7 +2484,7 @@ function App() {
                       <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{value}</span>
                       <div style={{position:"relative",width:34,height:34}}>
                         <div style={{width:34,height:34,borderRadius:8,background:value,border:`2px solid ${T.border}`,cursor:"pointer"}}/>
-                        <input type="color" value={value} onChange={e=>onChange(e.target.value)}
+                        <input type="color" value={safeColor(value)} onChange={e=>onChange(e.target.value)}
                           style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
                       </div>
                     </div>
