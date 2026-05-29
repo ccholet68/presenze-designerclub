@@ -1020,6 +1020,7 @@ function App() {
   const [sedeFilter, setSedeFilter] = useState("tutte"); // tutte | a1 | c1c2
   const [selectedSede, setSelectedSede] = useState("tutte"); // per dashboard
   const [adminTab, setAdminTab] = useState("colori");
+  const [showKeys, setShowKeys] = useState(false); // mostra/nasconde chiavi nella Struttura
   const [editingPerson, setEditingPerson] = useState(null);
   const [sidebarBg, setSidebarBg] = useState("#1e2d40");
   const [welcomeBg, setWelcomeBg] = useState("#1a2540");
@@ -2381,7 +2382,7 @@ function App() {
                   </div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"]].map(([id,lbl])=>(
+                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"],["struttura","🏗 Struttura"]].map(([id,lbl])=>(
                     <button key={id} className="btn" onClick={()=>setAdminTab(id)}
                       style={{padding:"8px 16px",background:adminTab===id?T.accent:T.bg,color:adminTab===id?"#fff":T.muted,border:`1px solid ${adminTab===id?T.accent:T.border}`,fontSize:14,fontWeight:600}}>
                       {lbl}
@@ -2814,6 +2815,145 @@ function App() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {adminTab==="struttura"&&(
+                <div className="fade-in">
+                  {/* Intro */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                      <div>
+                        <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:4}}>🏗 Struttura del programma</div>
+                        <div style={{fontSize:13,color:T.muted}}>Documentazione tecnica · App Presenze v{APP_VERSION} · {APP_VERSION_DATE}</div>
+                      </div>
+                      <button className="btn" onClick={()=>setShowKeys(!showKeys)}
+                        style={{padding:"8px 14px",background:showKeys?"#ef4444":T.accent,color:"#fff",border:"none",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>
+                        {showKeys?"🔒 Nascondi chiavi":"👁 Mostra chiavi"}
+                      </button>
+                    </div>
+                    <div style={{fontSize:13,color:T.muted,marginTop:10,lineHeight:1.5,padding:"10px 12px",background:`${T.accent}10`,borderRadius:8,border:`1px solid ${T.accent}33`}}>
+                      ⚠️ Questa pagina contiene informazioni riservate (chiavi di accesso ai servizi). Le chiavi sono mascherate di default — clicca "Mostra chiavi" solo quando necessario e <strong>non condividere screenshot di questa pagina</strong>.
+                    </div>
+                  </div>
+
+                  {/* Architettura */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>📐 Architettura</div>
+                    <div style={{fontSize:14,color:T.text,lineHeight:1.7}}>
+                      <div><strong>Tipo:</strong> applicazione web "Single Page" in React (senza server proprio).</div>
+                      <div><strong>Codice sorgente:</strong> GitHub → <code style={{background:T.bg,padding:"2px 6px",borderRadius:4,fontSize:12}}>ccholet68/presenze-designerclub</code></div>
+                      <div><strong>Hosting:</strong> Netlify · dominio <code style={{background:T.bg,padding:"2px 6px",borderRadius:4,fontSize:12}}>presenze.designerclub.com</code></div>
+                      <div><strong>Build automatico:</strong> ogni modifica su GitHub → Netlify compila con <code style={{background:T.bg,padding:"2px 6px",borderRadius:4,fontSize:12}}>npm install &amp;&amp; node build.js</code> → pubblica</div>
+                      <div><strong>Dati condivisi:</strong> Supabase (database PostgreSQL nel cloud)</div>
+                      <div><strong>Salvataggio locale:</strong> localStorage del browser (fallback se Supabase non risponde)</div>
+                    </div>
+                  </div>
+
+                  {/* Servizi esterni e chiavi */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:14,textTransform:"uppercase",letterSpacing:".05em"}}>🔌 Servizi esterni</div>
+
+                    <div style={{padding:"12px 14px",background:T.bg,borderRadius:8,marginBottom:10,border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:8}}>🗄️ Supabase (database)</div>
+                      <div style={{fontSize:13,color:T.muted,marginBottom:8,lineHeight:1.5}}>Memorizza in modo condiviso tutte le timbrature, i visitatori, i dipendenti aggiunti e le impostazioni. Tutti i dispositivi vedono gli stessi dati.</div>
+                      <div style={{display:"grid",gridTemplateColumns:"140px 1fr",gap:"6px 12px",fontSize:13,fontFamily:"monospace"}}>
+                        <div style={{color:T.muted}}>URL:</div>
+                        <div style={{color:T.text,wordBreak:"break-all"}}>{SUPABASE_URL}</div>
+                        <div style={{color:T.muted}}>Anon Key:</div>
+                        <div style={{color:T.text,wordBreak:"break-all"}}>{showKeys?SUPABASE_KEY:SUPABASE_KEY.slice(0,8)+"•".repeat(20)+SUPABASE_KEY.slice(-8)}</div>
+                        <div style={{color:T.muted}}>Piano:</div>
+                        <div style={{color:T.text}}>Free (limite 500MB · pausa dopo 7gg inattività)</div>
+                      </div>
+                    </div>
+
+                    <div style={{padding:"12px 14px",background:T.bg,borderRadius:8,marginBottom:10,border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:8}}>✉️ EmailJS (invio email)</div>
+                      <div style={{fontSize:13,color:T.muted,marginBottom:8,lineHeight:1.5}}>Servizio che permette all'app di inviare email (alert presenze, notifica cambio PIN). Limite piano gratuito: 200 email/mese.</div>
+                      <div style={{display:"grid",gridTemplateColumns:"140px 1fr",gap:"6px 12px",fontSize:13,fontFamily:"monospace"}}>
+                        <div style={{color:T.muted}}>Service ID:</div>
+                        <div style={{color:T.text}}>{EMAILJS_SERVICE}</div>
+                        <div style={{color:T.muted}}>Template alert:</div>
+                        <div style={{color:T.text}}>{EMAILJS_TEMPLATE} <span style={{color:T.muted,fontSize:11}}>(presenze)</span></div>
+                        <div style={{color:T.muted}}>Template PIN:</div>
+                        <div style={{color:T.text}}>{EMAILJS_TEMPLATE_PIN} <span style={{color:T.muted,fontSize:11}}>(notifica cambio PIN)</span></div>
+                        <div style={{color:T.muted}}>User Key:</div>
+                        <div style={{color:T.text,wordBreak:"break-all"}}>{showKeys?EMAILJS_KEY:EMAILJS_KEY.slice(0,4)+"•".repeat(10)+EMAILJS_KEY.slice(-4)}</div>
+                      </div>
+                    </div>
+
+                    <div style={{padding:"12px 14px",background:T.bg,borderRadius:8,marginBottom:10,border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:8}}>🌐 Netlify (hosting)</div>
+                      <div style={{fontSize:13,color:T.muted,marginBottom:8,lineHeight:1.5}}>Ospita il sito web e gestisce il deploy automatico da GitHub. Include la funzione <code style={{background:T.surface,padding:"2px 5px",borderRadius:3}}>piva.js</code> per il lookup Partita IVA dei visitatori.</div>
+                      <div style={{display:"grid",gridTemplateColumns:"140px 1fr",gap:"6px 12px",fontSize:13,fontFamily:"monospace"}}>
+                        <div style={{color:T.muted}}>Dominio:</div>
+                        <div style={{color:T.text}}>presenze.designerclub.com</div>
+                        <div style={{color:T.muted}}>Function:</div>
+                        <div style={{color:T.text}}>/.netlify/functions/piva</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabelle Supabase */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>📊 Tabelle Supabase</div>
+                    <div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:"8px 14px",fontSize:13,color:T.text,lineHeight:1.5}}>
+                      <div style={{fontFamily:"monospace",color:T.accent,fontWeight:700}}>accessi</div>
+                      <div>Timbrature: ingressi, pause, cambi sede, uscite. Una riga per ogni evento.</div>
+                      <div style={{fontFamily:"monospace",color:T.accent,fontWeight:700}}>visitatori</div>
+                      <div>Storico visitatori/fornitori con codice e dati anagrafici (anche P.IVA).</div>
+                      <div style={{fontFamily:"monospace",color:T.accent,fontWeight:700}}>persone_extra</div>
+                      <div>Dipendenti aggiunti oltre ai 19 iniziali codificati nell'app.</div>
+                      <div style={{fontFamily:"monospace",color:T.accent,fontWeight:700}}>impostazioni</div>
+                      <div>Configurazioni globali (PIN aziendale, email amministratore). Formato chiave-valore.</div>
+                    </div>
+                  </div>
+
+                  {/* Funzionalità principali */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>⚙️ Funzionalità</div>
+                    <ul style={{fontSize:13,color:T.text,lineHeight:1.8,paddingLeft:20,margin:0}}>
+                      <li>Login con codice dipendente + PIN aziendale (modificabile da Admin)</li>
+                      <li>Timbrature multisede A1 (Uffici) e C1-C2 (Magazzino/Produzione)</li>
+                      <li>Pulsanti: Pausa · Cambia sede · Uscita · Uscita massiva per sede</li>
+                      <li>Filtri per sede, tipo (dipendente/visitatore), stato</li>
+                      <li>Admin: Colori · Presenze · Dipendenti · Sedi · Struttura</li>
+                      <li>Import CSV dipendenti · Modifica anagrafica completa</li>
+                      <li>Visitatori/Fornitori con lookup automatico P.IVA</li>
+                      <li>Alert via email con lista presenti e in pausa</li>
+                      <li>Notifica email al cambio del PIN aziendale</li>
+                      <li>Archivio storico esportabile in Excel/CSV</li>
+                      <li>Backup completo del sistema (JSON) per conservazione 24 mesi</li>
+                    </ul>
+                  </div>
+
+                  {/* Pannelli esterni */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>🔗 Pannelli di amministrazione esterni</div>
+                    <div style={{fontSize:13,color:T.text,lineHeight:1.7}}>
+                      <div>• GitHub: <a href="https://github.com/ccholet68/presenze-designerclub" target="_blank" rel="noopener noreferrer" style={{color:T.accent}}>github.com/ccholet68/presenze-designerclub</a></div>
+                      <div>• Netlify: <a href="https://app.netlify.com/" target="_blank" rel="noopener noreferrer" style={{color:T.accent}}>app.netlify.com</a></div>
+                      <div>• Supabase: <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" style={{color:T.accent}}>supabase.com/dashboard</a></div>
+                      <div>• EmailJS: <a href="https://dashboard.emailjs.com/admin" target="_blank" rel="noopener noreferrer" style={{color:T.accent}}>dashboard.emailjs.com</a></div>
+                    </div>
+                  </div>
+
+                  {/* File principali */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px"}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>📁 File principali del progetto</div>
+                    <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:"6px 14px",fontSize:13,color:T.text,lineHeight:1.5}}>
+                      <div style={{fontFamily:"monospace",color:T.accent}}>presenze-clean.jsx</div>
+                      <div>Codice React dell'intera applicazione</div>
+                      <div style={{fontFamily:"monospace",color:T.accent}}>build.js</div>
+                      <div>Script di compilazione da JSX a JavaScript</div>
+                      <div style={{fontFamily:"monospace",color:T.accent}}>netlify.toml</div>
+                      <div>Configurazione di build/deploy per Netlify</div>
+                      <div style={{fontFamily:"monospace",color:T.accent}}>package.json</div>
+                      <div>Dipendenze del progetto (React, esbuild, ecc.)</div>
+                      <div style={{fontFamily:"monospace",color:T.accent}}>netlify/functions/piva.js</div>
+                      <div>Funzione serverless per lookup P.IVA visitatori</div>
+                    </div>
                   </div>
                 </div>
               )}
