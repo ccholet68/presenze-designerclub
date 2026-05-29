@@ -2662,21 +2662,35 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
                     <div style={{fontSize:15,fontWeight:700,color:T.text}}>👥 Gestione Dipendenti ({people.filter(p=>p.type==="dipendente").length})</div>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                      {/* Scarica template */}
+                      {/* Esporta dipendenti (CSV con tutti i dati reali, compatibile con l'importazione) */}
                       <button className="btn" onClick={()=>{
                         const BOM="\uFEFF";
-                        const rows=[
-                          ["Nome e Cognome","Ruolo/Qualifica","Reparto","Tipo","Data Nascita","Luogo Nascita","Codice Fiscale","Email","Telefono","Data Assunzione"].join(";"),
-                          ["Rossi Mario","Operaio - Produzione/Magazzino","Produzione","dipendente","01/01/1980","Milano (MI)","RSSMRA80A01F205X","mario@designerclub.com","+39 333 1234567","01/01/2020"].join(";"),
-                        ];
+                        const esc=(v)=>{
+                          const s=(v==null?"":String(v));
+                          // Se contiene ; " o newline, racchiudi tra virgolette e raddoppia le " interne
+                          return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+                        };
+                        const header=["Nome e Cognome","Ruolo/Qualifica","Reparto","Tipo","Data Nascita","Luogo Nascita","Codice Fiscale","Email","Telefono","Data Assunzione"];
+                        const dipendenti=people.filter(p=>p.type==="dipendente").sort((a,b)=>a.name.localeCompare(b.name,"it"));
+                        const rows=[header.map(esc).join(";")];
+                        dipendenti.forEach(p=>{
+                          const repNome=depts.find(d=>d.id===p.deptId)?.name||"";
+                          rows.push([
+                            p.name||"", p.role||"", repNome, p.type||"dipendente",
+                            p.dataNascita||"", p.luogoNascita||"", p.codiceFiscale||"",
+                            p.email||"", p.telefono||"", p.dataAssunzione||""
+                          ].map(esc).join(";"));
+                        });
                         const blob=new Blob([BOM+rows.join("\n")],{type:"text/csv;charset=utf-8"});
                         const url=URL.createObjectURL(blob);
                         const a=document.createElement("a");
-                        a.href=url; a.download="template_dipendenti.csv"; a.click();
-                        URL.revokeObjectURL(url);
+                        const today=new Date().toISOString().slice(0,10);
+                        a.href=url; a.download=`dipendenti_designerclub_${today}.csv`;
+                        document.body.appendChild(a); a.click();
+                        document.body.removeChild(a); URL.revokeObjectURL(url);
                       }}
                         style={{padding:"7px 13px",background:T.bg,color:T.muted,border:`1px solid ${T.border}`,fontSize:13,fontWeight:600}}>
-                        ⬇ Template CSV
+                        📥 Esporta dipendenti
                       </button>
                       {/* Importa Excel/CSV */}
                       <label style={{padding:"7px 13px",background:`${T.present}18`,color:T.present,border:`1px solid ${T.present}55`,borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer"}}>
@@ -2735,7 +2749,7 @@ function App() {
 
                   {/* Istruzioni importazione */}
                   <div style={{background:`${T.accent}10`,border:`1px solid ${T.accent}33`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.muted}}>
-                    💡 <strong style={{color:T.text}}>Come importare:</strong> Scarica il template CSV, compilalo con i dati dei dipendenti (separatore <code>;</code>), poi usa "Importa CSV/Excel". I dipendenti già presenti vengono aggiornati, i nuovi vengono aggiunti.
+                    💡 <strong style={{color:T.text}}>Esporta / Importa:</strong> Il pulsante "Esporta dipendenti" scarica un CSV con tutti i dati attuali (utile come backup o per modifiche di massa in Excel). Per importare modifiche o nuovi dipendenti, usa "Importa CSV/Excel" con lo stesso formato (separatore <code>;</code>): i dipendenti già presenti vengono aggiornati, i nuovi vengono aggiunti.
                   </div>
 
                   {/* Lista dipendenti */}
