@@ -1050,20 +1050,75 @@ function App() {
   // Carica dati al primo avvio
   useEffect(() => {
     async function load() {
+      // 1) Lettura immediata dal localStorage (l'app diventa subito utilizzabile)
       try {
         const r1 = localStorage.getItem("dc_records"); if (r1) setRecords(JSON.parse(r1));
         const r2 = localStorage.getItem("dc_visitatori"); if (r2) setVisitatori(JSON.parse(r2));
         const r3 = localStorage.getItem("dc_people_extra"); if (r3) { const extra = JSON.parse(r3); setPeople(prev => { const existingIds = new Set(prev.map(p=>p.id)); return [...prev, ...extra.filter(p=>!existingIds.has(p.id))]; }); } } catch(e) { console.log("Storage vuoto o errore:", e); }
-      // Carica impostazioni condivise da Supabase (PIN ed email admin)
+
+      // 2) Caricamento da Supabase (fonte di verità condivisa fra dispositivi).
+      //    Se non risponde entro 8 secondi → fallback: si tiene quanto già caricato dal localStorage.
+      const withTimeout = (promise, ms) => Promise.race([
+        promise,
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")), ms))
+      ]);
+
+      // Impostazioni (PIN ed email admin)
       try {
-        const imp = await sb.select("impostazioni", { select: "chiave,valore" });
+        const imp = await withTimeout(sb.select("impostazioni", { select: "chiave,valore" }), 8000);
         if (Array.isArray(imp)) {
           const pin = imp.find(x => x.chiave === "pin_aziendale");
           if (pin?.valore) setPinAziendale(pin.valore);
           const em = imp.find(x => x.chiave === "email_admin");
           if (em?.valore) setEmailAdmin(em.valore);
         }
-      } catch(e) { console.warn("Errore caricamento impostazioni:", e); }
+      } catch(e) { console.warn("Impostazioni: uso valori locali.", e?.message); }
+
+      // Accessi (timbrature) — ricostruisce l'oggetto records dalla tabella accessi
+      try {
+        const rows = await withTimeout(sb.select("accessi", { select: "*" }), 8000);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const rebuilt = {};
+          rows.forEach(r => {
+            const day = r.data; const pid = r.person_id; if (!day || !pid) return;
+            if (!rebuilt[day]) rebuilt[day] = {};
+            rebuilt[day][pid] = {
+              in: r.ora_entrata ? new Date(r.ora_entrata).getTime() : null,
+              out: r.ora_uscita ? new Date(r.ora_uscita).getTime() : null,
+              sede: r.sede || "a1",
+              pauses: (r.pauses||[]).map(p=>({start: p.start?new Date(p.start).getTime():null, end: p.end?new Date(p.end).getTime():null})),
+              rientri: r.rientri || [],
+              spostamenti: r.spostamenti || [],
+            };
+          });
+          setRecords(rebuilt);
+        }
+      } catch(e) { console.warn("Accessi: uso dati locali.", e?.message); }
+
+      // Visitatori
+      try {
+        const vis = await withTimeout(sb.select("visitatori", { select: "*" }), 8000);
+        if (Array.isArray(vis) && vis.length > 0) {
+          // Ricostruisce l'array {codice, dati}
+          const items = vis.map(v => ({codice: v.codice, dati: v.dati})).filter(v => v.codice && v.dati);
+          if (items.length > 0) setVisitatori(items);
+        }
+      } catch(e) { console.warn("Visitatori: uso dati locali.", e?.message); }
+
+      // Persone extra (dipendenti aggiunti oltre ai 19 iniziali)
+      try {
+        const extra = await withTimeout(sb.select("persone_extra", { select: "*" }), 8000);
+        if (Array.isArray(extra) && extra.length > 0) {
+          setPeople(prev => {
+            const initialIds = new Set(INIT_PEOPLE.map(p=>p.id));
+            const base = prev.filter(p => initialIds.has(p.id)); // mantieni solo gli iniziali
+            const extraPersons = extra.map(e => e.dati).filter(d => d && d.id);
+            const seen = new Set(base.map(p=>p.id));
+            return [...base, ...extraPersons.filter(p=>!seen.has(p.id))];
+          });
+        }
+      } catch(e) { console.warn("Persone extra: uso dati locali.", e?.message); }
+
       setStorageReady(true);
     }
     load();
