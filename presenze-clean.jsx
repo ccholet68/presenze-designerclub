@@ -1011,6 +1011,8 @@ function App() {
   const [searchQ, setSearchQ] = useState("");
   const [screen, setScreen] = useState("login"); // login | welcome | app
   const [pinAziendale, setPinAziendale] = useState("1234"); // PIN modificabile da Admin
+  const [pinAdmin, setPinAdmin] = useState("9999"); // PIN amministratore (default, cambialo dopo il primo ingresso)
+  const [adminUnlocked, setAdminUnlocked] = useState(false); // true dopo aver inserito correttamente il PIN admin in questa sessione
   const [emailAdmin, setEmailAdmin] = useState(""); // email amministratore per notifiche
   const [loginCodice, setLoginCodice] = useState("");
   const [loginPin, setLoginPin] = useState("");
@@ -1069,6 +1071,8 @@ function App() {
         if (Array.isArray(imp)) {
           const pin = imp.find(x => x.chiave === "pin_aziendale");
           if (pin?.valore) setPinAziendale(pin.valore);
+          const pinA = imp.find(x => x.chiave === "pin_admin");
+          if (pinA?.valore) setPinAdmin(pinA.valore);
           const em = imp.find(x => x.chiave === "email_admin");
           if (em?.valore) setEmailAdmin(em.valore);
         }
@@ -1611,10 +1615,24 @@ function App() {
         <nav style={{flex:1,padding:"12px 10px",overflowY:"auto"}}>
           <div style={{fontSize:10,color:"#475569",fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",padding:"6px 8px 8px"}}>Menu</div>
           {NAV_ITEMS.map(item=>(
-            <button key={item.id} className={`nav-item${view===item.id?" active":""}`} onClick={()=>setView(item.id)}>
+            <button key={item.id} className={`nav-item${view===item.id?" active":""}`} onClick={()=>{
+              if(item.id==="admin" && !adminUnlocked){
+                const tentativo = window.prompt("🔐 Accesso area Amministratore\n\nInserisci il PIN admin:");
+                if(tentativo===null) return; // annullato
+                if(tentativo===pinAdmin){
+                  setAdminUnlocked(true);
+                  setView("admin");
+                } else {
+                  alert("❌ PIN admin errato. Accesso negato.");
+                }
+                return;
+              }
+              setView(item.id);
+            }}>
               <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
               {item.id==="live"&&<span className="pulse" style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:view==="live"?"#fff":"#22c55e",display:"inline-block"}}/>}
+              {item.id==="admin"&&adminUnlocked&&<span style={{marginLeft:"auto",fontSize:11,color:"#22c55e"}}>🔓</span>}
             </button>
           ))}
 
@@ -2453,6 +2471,37 @@ function App() {
                   }}
                     style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
                     🔑 Cambia PIN
+                  </button>
+                </div>
+                {/* Cambio PIN Admin */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN amministratore attuale</div>
+                    <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinAdmin.length)}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2}}>Protegge l'accesso all'area Amministratore</div>
+                  </div>
+                  <button className="btn" onClick={async ()=>{
+                    const newPin=window.prompt("Inserisci il nuovo PIN amministratore (solo numeri, 4-8 cifre):");
+                    if(!newPin) return;
+                    if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    if(newPin===pinAziendale){alert("⚠️ Il PIN admin deve essere diverso dal PIN aziendale.");return;}
+                    const vecchioPin = pinAdmin;
+                    setPinAdmin(newPin);
+                    sb.upsert("impostazioni", {chiave:"pin_admin", valore:newPin}).catch(()=>{});
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN admin aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN admin:", e);
+                        alert("✅ PIN admin aggiornato, ma l'invio dell'email è fallito.");
+                      }
+                    } else {
+                      alert("✅ PIN admin aggiornato! (Nessuna email amministratore impostata: notifica non inviata.)");
+                    }
+                  }}
+                    style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
+                    🛡️ Cambia PIN Admin
                   </button>
                 </div>
                 {/* Email amministratore per notifiche */}
