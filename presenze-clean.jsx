@@ -1805,7 +1805,7 @@ function App() {
                 ))}
               </div>
               {/* Contatori stato */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:14,marginBottom:22}}>
                 {[["Presenti",counts.present,T.present],["In pausa",counts.paused,T.paused],["Usciti",counts.done,T.done],["Assenti",counts.absent,T.absent]].map(([lbl,val,color])=>(
                   <div key={lbl} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 20px"}}>
                     <div style={{fontSize:13,color:T.textMuted,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}}>{lbl}</div>
@@ -1818,7 +1818,7 @@ function App() {
               </div>
 
               {/* Contatori per tipo */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:22}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:14,marginBottom:22}}>
                 {PERSON_TYPES.map(pt=>{
                   const tot=people.filter(p=>p.type===pt.id).length;
                   const pres=people.filter(p=>p.type===pt.id&&statusOf(getRecord(p.id))==="present").length;
@@ -2156,7 +2156,7 @@ function App() {
               </div>
 
               {/* Export cards */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:14,marginBottom:24}}>
                 {[
                   {label:"Ultimo mese",months:1,icon:"📅",desc:"Esporta i dati delle ultime 4 settimane"},
                   {label:"Ultimi 6 mesi",months:6,icon:"📆",desc:"Esporta il semestre corrente"},
