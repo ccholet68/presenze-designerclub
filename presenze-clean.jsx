@@ -1650,11 +1650,18 @@ function App() {
         .nav-item.active .nav-icon{background:rgba(255,255,255,.2);}
         .nav-item:hover:not(.active) .nav-icon{background:#334155;}
         .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-        @media(max-width:768px){
+        @media(max-width:900px){
           .sidebar-full{display:none!important;}
           .grid-2col{grid-template-columns:1fr!important;}
           .main-content{margin-left:0!important;padding-bottom:75px!important;}
           .mobile-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:#1f2937;border-top:1px solid #374151;z-index:200;padding:6px 0 10px;}
+          /* Su schermi stretti, ogni contenuto principale rispetta il bordo destro */
+          main{padding:14px 14px!important;}
+          header{padding:8px 14px!important;flex-wrap:wrap;gap:6px;}
+        }
+        /* Tablet intermedio (es. iPad in orizzontale) */
+        @media(min-width:901px) and (max-width:1100px){
+          main{padding:18px 18px!important;}
         }
         .mob-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:none;border:none;cursor:pointer;font-family:Arial,sans-serif;}
         .mob-btn span:first-child{font-size:20px;line-height:1;}
@@ -1728,7 +1735,7 @@ function App() {
       </aside>
 
       {/* ── CONTENUTO PRINCIPALE ── */}
-      <div className="main-content" style={{flex:1,marginLeft:240,display:"flex",flexDirection:"column",minHeight:"100vh",alignItems:"stretch"}}>
+      <div className="main-content" style={{flex:1,marginLeft:240,display:"flex",flexDirection:"column",minHeight:"100vh",alignItems:"stretch",minWidth:0,overflowX:"hidden"}}>
         {/* Top bar */}
         <header style={{background:"#243447",borderBottom:"1px solid #374151",padding:"0 28px",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1889,11 +1896,11 @@ function App() {
           {view==="timbrature" && (
             <div className="fade-in">
               {/* Filtri */}
-              {/* Barra filtri - scrollabile orizzontalmente su mobile */}
-              <div style={{marginBottom:12,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4}}>
-                <div style={{display:"flex",gap:6,alignItems:"center",minWidth:"max-content"}}>
+              {/* Barra filtri - i pulsanti vanno a capo automaticamente se non c'è spazio */}
+              <div style={{marginBottom:12,paddingBottom:4}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                   <input type="text" placeholder="Cerca..." value={searchQ} onChange={e=>setSearchQ(e.target.value)}
-                    style={{width:140,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:13,padding:"6px 10px",outline:"none",flexShrink:0}}/>
+                    style={{flex:"1 1 140px",minWidth:140,maxWidth:200,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:13,padding:"6px 10px",outline:"none"}}/>
                   {/* Filtro sede */}
                   {[{id:"tutte",name:"Tutte",color:T.accent},...SEDI.map(s=>({...s,name:s.id==="a1"?"A1":"C1-C2"}))].map(s=>(
                     <button key={s.id} className="btn" onClick={()=>setSedeFilter(s.id)}
@@ -1918,7 +1925,7 @@ function App() {
 
               {/* Griglia 2 per riga, ordine alfabetico */}
               {filtered.length===0&&<div style={{color:T.textMuted,fontSize:15,padding:"24px",textAlign:"center"}}>Nessun risultato trovato.</div>}
-              <div className="grid-2col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div className="grid-2col">
                 {[...filtered].sort((a,b)=>a.name.localeCompare(b.name,"it")).map((p)=>{
                   const rec=getRecord(p.id); const st=statusOf(rec); const color=STATUS_COLOR[st];
                   const pauses=rec?.pauses||[]; const onPause=pauses.some(x=>!x.end);
