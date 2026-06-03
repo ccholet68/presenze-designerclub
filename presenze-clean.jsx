@@ -675,7 +675,7 @@ function VisitorModal({ T, onAdd, onClose, defaultType, visitatori, onSaveVisita
     setStep(3);
   }
 
-  const inp = { width:"100%", background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, fontSize:15, padding:"9px 12px", outline:"none", marginBottom:12, fontFamily:"Arial,sans-serif" };
+  const inp = { width:"100%", background:"#ffffff", border:`1px solid ${T.border}`, borderRadius:8, color:"#1a1a2e", fontSize:15, padding:"9px 12px", outline:"none", marginBottom:12, fontFamily:"Arial,sans-serif" };
   const lbl = { fontSize:13, color:T.textMuted, display:"block", marginBottom:4, fontWeight:600 };
 
   return (
@@ -1620,6 +1620,14 @@ function App() {
         *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:2px;}
         .btn{cursor:pointer;border:none;border-radius:8px;font-family:Arial,sans-serif;font-size:14px;font-weight:600;transition:all .15s;}
+        /* Forza sfondo bianco e testo scuro su tutti i campi di input per garantire la leggibilità su ogni tema */
+        input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+        select, textarea {
+          background-color:#ffffff !important;
+          color:#1a1a2e !important;
+        }
+        input::placeholder, textarea::placeholder { color:#94a3b8 !important; opacity:1; }
+        input:disabled, select:disabled, textarea:disabled { background-color:#f5f5f7 !important; color:#888 !important; }
         .btn:active{transform:scale(.97);}
         .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:20px;font-size:13px;font-weight:600;}
         .row-hover:hover{background:#f8fafc;}
