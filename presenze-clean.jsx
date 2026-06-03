@@ -1822,36 +1822,65 @@ function App() {
           {/* ── STATO LIVE ── */}
           {view==="live" && (
             <div className="fade-in">
-              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,marginBottom:14}}>
-                <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"14px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
                   <span style={{fontSize:15,color:T.text,fontWeight:700}}>Stato Live — {now.toLocaleDateString("it-IT")}</span>
-                  <span className="pulse" style={{fontSize:13,color:T.present,fontWeight:600}}>● LIVE</span>
+                  <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+                    {(()=>{
+                      const counts = {present:0, paused:0, done:0, absent:0};
+                      people.forEach(p=>{ const st=statusOf(getRecord(p.id)); if(counts[st]!==undefined) counts[st]++; });
+                      return (<>
+                        <span style={{fontSize:12,color:T.present,fontWeight:700}}>● {counts.present} Presenti</span>
+                        <span style={{fontSize:12,color:T.paused,fontWeight:700}}>● {counts.paused} Pausa</span>
+                        <span style={{fontSize:12,color:T.done,fontWeight:700}}>● {counts.done} Usciti</span>
+                        <span style={{fontSize:12,color:T.absent,fontWeight:700}}>● {counts.absent} Assenti</span>
+                      </>);
+                    })()}
+                    <span className="pulse" style={{fontSize:12,color:T.present,fontWeight:700}}>● LIVE</span>
+                  </div>
                 </div>
-                {people.map((p,i)=>{
-                  const rec=getRecord(p.id); const st=statusOf(rec); const color=STATUS_COLOR[st];
-                  const dept=getDept(p.deptId);
-                  const pt=PERSON_TYPES.find(x=>x.id===p.type);
-                  return (
-                    <div key={p.id} className="row-hover" style={{display:"grid",gridTemplateColumns:"44px 1fr auto",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:i<people.length-1?`1px solid ${T.border}`:"none",cursor:"pointer"}}
-                      onClick={()=>setView("timbrature")}>
-                      <div style={{width:40,height:40,borderRadius:10,background:`${pt.color}18`,color:pt.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700}}>
-                        {initials(p.name)}
-                      </div>
-                      <div>
-                        <div style={{fontSize:16,fontWeight:600,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                          {p.name}
-                          <span style={{fontSize:12,color:pt.color,background:`${pt.color}18`,padding:"2px 8px",borderRadius:10,fontWeight:600}}>{pt.icon} {pt.label}</span>
-                          {dept&&<span style={{fontSize:12,color:dept.color,background:`${dept.color}18`,padding:"2px 8px",borderRadius:10,fontWeight:600}}>{dept.name}</span>}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(170px, 1fr))",gap:10}}>
+                  {[...people].sort((a,b)=>a.name.localeCompare(b.name,"it")).map(p=>{
+                    const rec=getRecord(p.id); const st=statusOf(rec); const color=STATUS_COLOR[st];
+                    const dept=getDept(p.deptId);
+                    const cognome = p.name.split(" ")[0];
+                    const nome = p.name.split(" ").slice(1).join(" ");
+                    return (
+                      <div key={p.id} title={`${p.name}\n${p.role||""}\n${dept?dept.name:""}\nStato: ${statusLabel(st,rec)}`}
+                        onClick={()=>setView("timbrature")}
+                        style={{
+                          background:T.bg,
+                          border:`2px solid ${dept?dept.color:T.border}`,
+                          borderRadius:10,
+                          padding:"10px 12px",
+                          cursor:"pointer",
+                          transition:"transform .12s, box-shadow .12s",
+                          position:"relative",
+                          minHeight:80
+                        }}
+                        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 4px 12px ${color}33`;}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
+                        {/* Pallino stato in alto a destra */}
+                        <div style={{position:"absolute",top:8,right:8,width:10,height:10,borderRadius:"50%",background:color,boxShadow:`0 0 0 2px ${T.bg}`}}/>
+                        {/* Nome */}
+                        <div style={{fontSize:13,fontWeight:700,color:T.text,lineHeight:1.2,marginBottom:2,paddingRight:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                          {cognome}
                         </div>
-                        <div style={{fontSize:13,color:T.textMuted,marginTop:2}}>{p.role}</div>
+                        <div style={{fontSize:11,color:T.textMuted,marginBottom:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nome}</div>
+                        {/* Stato e orario */}
+                        <div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:".03em"}}>{statusLabel(st,rec)}</div>
+                        {rec?.in && (
+                          <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>
+                            🕐 {fmtTime(rec.in)}{rec.out && ` → ${fmtTime(rec.out)}`}
+                          </div>
+                        )}
                       </div>
-                      <div style={{textAlign:"right"}}>
-                        <span className="pill" style={{background:`${color}18`,color}}>{statusLabel(st,rec)}</span>
-                        {rec&&<div style={{fontSize:12,color:T.textMuted,marginTop:3}}>{rec.in&&`In: ${fmtTime(rec.in)}`}{rec.out&&` · Out: ${fmtTime(rec.out)}`}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:11,color:T.textMuted,marginTop:10,textAlign:"center"}}>
+                  Clicca su una persona per andare alla sua timbratura · I colori del bordo indicano il reparto
+                </div>
               </div>
             </div>
           )}
