@@ -155,21 +155,21 @@ const INIT_PEOPLE = [
 // ── Tema ────────────────────────────────────────────────────────
 const DEFAULT_THEME = {
   bg: "#f0f2f5", surface: "#ffffff", border: "#e0e4ea",
-  text: "#1a1a2e", textMuted: "#888", accent: "#4361ee",
+  text: "#1a1a2e", textMuted: "#475569", muted: "#475569", accent: "#4361ee",
   present: "#2dc653", paused: "#f4a261", absent: "#e05c5c", done: "#4361ee",
 };
 
 const PRESETS = [
   { name: "Chiaro",  icon: "☀️",
-    theme: { bg:"#f0f2f5", surface:"#ffffff", border:"#e0e4ea", text:"#1a1a2e", textMuted:"#888", accent:"#4361ee", present:"#2dc653", paused:"#f4a261", absent:"#e05c5c", done:"#4361ee" }},
+    theme: { bg:"#f0f2f5", surface:"#ffffff", border:"#e0e4ea", text:"#1a1a2e", textMuted:"#475569", muted:"#475569", accent:"#4361ee", present:"#2dc653", paused:"#f4a261", absent:"#e05c5c", done:"#4361ee" }},
   { name: "Notte",   icon: "🌙",
-    theme: { bg:"#0d0d14", surface:"#13131f", border:"#1e1e30", text:"#e8e8f0", textMuted:"#555", accent:"#4f8ef7", present:"#4ff7b2", paused:"#f7e44f", absent:"#f74f8e", done:"#4f8ef7" }},
+    theme: { bg:"#0d0d14", surface:"#13131f", border:"#1e1e30", text:"#e8e8f0", textMuted:"#a0a0b8", muted:"#a0a0b8", accent:"#4f8ef7", present:"#4ff7b2", paused:"#f7e44f", absent:"#f74f8e", done:"#4f8ef7" }},
   { name: "Oceano",  icon: "🌊",
-    theme: { bg:"#050e1a", surface:"#0a1a2e", border:"#0d2540", text:"#cce8ff", textMuted:"#3a6080", accent:"#00b4d8", present:"#00f5d4", paused:"#ffd60a", absent:"#ff6b6b", done:"#00b4d8" }},
+    theme: { bg:"#050e1a", surface:"#0a1a2e", border:"#0d2540", text:"#cce8ff", textMuted:"#7ba8d0", muted:"#7ba8d0", accent:"#00b4d8", present:"#00f5d4", paused:"#ffd60a", absent:"#ff6b6b", done:"#00b4d8" }},
   { name: "Foresta", icon: "🌿",
-    theme: { bg:"#060f08", surface:"#0d1a10", border:"#152a18", text:"#d4edda", textMuted:"#3a6b45", accent:"#52b788", present:"#74c69d", paused:"#d4e157", absent:"#e63946", done:"#52b788" }},
+    theme: { bg:"#060f08", surface:"#0d1a10", border:"#152a18", text:"#d4edda", textMuted:"#8eba9a", muted:"#8eba9a", accent:"#52b788", present:"#74c69d", paused:"#d4e157", absent:"#e63946", done:"#52b788" }},
   { name: "Aurora",  icon: "🌅",
-    theme: { bg:"#1a0a0a", surface:"#231010", border:"#3a1a1a", text:"#ffeedd", textMuted:"#6b3a3a", accent:"#ff6b35", present:"#06d6a0", paused:"#ffd166", absent:"#ef476f", done:"#118ab2" }},
+    theme: { bg:"#1a0a0a", surface:"#231010", border:"#3a1a1a", text:"#ffeedd", textMuted:"#c9a89a", muted:"#c9a89a", accent:"#ff6b35", present:"#06d6a0", paused:"#ffd166", absent:"#ef476f", done:"#118ab2" }},
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -1350,7 +1350,14 @@ function App() {
     }
     return STATUS_LABEL[st];
   };
-  const T = theme;
+  // Garantisce che il tema abbia sempre entrambe le chiavi muted/textMuted con un colore leggibile (fallback se manca)
+  const T = (()=>{
+    const t = {...theme};
+    if (!t.muted && t.textMuted) t.muted = t.textMuted;
+    if (!t.textMuted && t.muted) t.textMuted = t.muted;
+    if (!t.muted && !t.textMuted) { t.muted = "#475569"; t.textMuted = "#475569"; }
+    return t;
+  })();
   const STATUS_COLOR = { absent:T.absent, present:T.present, paused:T.paused, done:T.done };
 
   const getDept = id => depts.find(d=>d.id===id);
@@ -2684,12 +2691,12 @@ function App() {
                 <div style={{fontSize:13,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginBottom:18}}>🎨 Tema interfaccia</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12}}>
                   {[
-                    {name:"Chiaro",   emoji:"☀️", bg:"#f0f2f5",  surface:"#ffffff", accent:"#4361ee", text:"#1a1a2e", desc:"Luminoso",   theme:{bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#888",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"}},
-                    {name:"Scuro",    emoji:"🌙", bg:"#1e2d3d",  surface:"#243447", accent:"#3b82f6", text:"#f9fafb", desc:"Dark blue",  theme:{bg:"#1e2d3d",surface:"#243447",border:"#2d4060",text:"#f9fafb",muted:"#9ca3af",accent:"#3b82f6",present:"#22c55e",paused:"#f59e0b",absent:"#ef4444",done:"#3b82f6"}},
-                    {name:"Notte",    emoji:"🌑", bg:"#0d0d14",  surface:"#13131f", accent:"#4f8ef7", text:"#e8e8f0", desc:"Nero puro",  theme:{bg:"#0d0d14",surface:"#13131f",border:"#1e1e30",text:"#e8e8f0",muted:"#555",accent:"#4f8ef7",present:"#4ff7b2",paused:"#f7e44f",absent:"#f74f8e",done:"#4f8ef7"}},
-                    {name:"Oceano",   emoji:"🌊", bg:"#050e1a",  surface:"#0a1a2e", accent:"#00b4d8", text:"#cce8ff", desc:"Blu marino", theme:{bg:"#050e1a",surface:"#0a1a2e",border:"#0d2540",text:"#cce8ff",muted:"#3a6080",accent:"#00b4d8",present:"#00f5d4",paused:"#ffd60a",absent:"#ff6b6b",done:"#00b4d8"}},
-                    {name:"Foresta",  emoji:"🌿", bg:"#060f08",  surface:"#0d1a10", accent:"#52b788", text:"#d4edda", desc:"Verde notte", theme:{bg:"#060f08",surface:"#0d1a10",border:"#152a18",text:"#d4edda",muted:"#3a6b45",accent:"#52b788",present:"#74c69d",paused:"#d4e157",absent:"#e63946",done:"#52b788"}},
-                    {name:"Aurora",   emoji:"🌅", bg:"#1a0a0a",  surface:"#231010", accent:"#ff6b35", text:"#ffeedd", desc:"Arancio",    theme:{bg:"#1a0a0a",surface:"#231010",border:"#3a1a1a",text:"#ffeedd",muted:"#6b3a3a",accent:"#ff6b35",present:"#06d6a0",paused:"#ffd166",absent:"#ef476f",done:"#118ab2"}},
+                    {name:"Chiaro",   emoji:"☀️", bg:"#f0f2f5",  surface:"#ffffff", accent:"#4361ee", text:"#1a1a2e", desc:"Luminoso",   theme:{bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#475569",textMuted:"#475569",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"}},
+                    {name:"Scuro",    emoji:"🌙", bg:"#1e2d3d",  surface:"#243447", accent:"#3b82f6", text:"#f9fafb", desc:"Dark blue",  theme:{bg:"#1e2d3d",surface:"#243447",border:"#2d4060",text:"#f9fafb",muted:"#cbd5e1",textMuted:"#cbd5e1",accent:"#3b82f6",present:"#22c55e",paused:"#f59e0b",absent:"#ef4444",done:"#3b82f6"}},
+                    {name:"Notte",    emoji:"🌑", bg:"#0d0d14",  surface:"#13131f", accent:"#4f8ef7", text:"#e8e8f0", desc:"Nero puro",  theme:{bg:"#0d0d14",surface:"#13131f",border:"#1e1e30",text:"#e8e8f0",muted:"#a0a0b8",textMuted:"#a0a0b8",accent:"#4f8ef7",present:"#4ff7b2",paused:"#f7e44f",absent:"#f74f8e",done:"#4f8ef7"}},
+                    {name:"Oceano",   emoji:"🌊", bg:"#050e1a",  surface:"#0a1a2e", accent:"#00b4d8", text:"#cce8ff", desc:"Blu marino", theme:{bg:"#050e1a",surface:"#0a1a2e",border:"#0d2540",text:"#cce8ff",muted:"#7ba8d0",textMuted:"#7ba8d0",accent:"#00b4d8",present:"#00f5d4",paused:"#ffd60a",absent:"#ff6b6b",done:"#00b4d8"}},
+                    {name:"Foresta",  emoji:"🌿", bg:"#060f08",  surface:"#0d1a10", accent:"#52b788", text:"#d4edda", desc:"Verde notte", theme:{bg:"#060f08",surface:"#0d1a10",border:"#152a18",text:"#d4edda",muted:"#8eba9a",textMuted:"#8eba9a",accent:"#52b788",present:"#74c69d",paused:"#d4e157",absent:"#e63946",done:"#52b788"}},
+                    {name:"Aurora",   emoji:"🌅", bg:"#1a0a0a",  surface:"#231010", accent:"#ff6b35", text:"#ffeedd", desc:"Arancio",    theme:{bg:"#1a0a0a",surface:"#231010",border:"#3a1a1a",text:"#ffeedd",muted:"#c9a89a",textMuted:"#c9a89a",accent:"#ff6b35",present:"#06d6a0",paused:"#ffd166",absent:"#ef476f",done:"#118ab2"}},
                   ].map(p=>{
                     const isActive = T.bg===p.bg && T.surface===p.surface;
                     return (
@@ -2715,7 +2722,7 @@ function App() {
                     );
                   })}
                 </div>
-                <button onClick={()=>setTheme({bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#888",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"})}
+                <button onClick={()=>setTheme({bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#475569",textMuted:"#475569",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"})}
                   style={{marginTop:14,padding:"7px 16px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"Arial,sans-serif"}}>
                   ↺ Ripristina tema chiaro
                 </button>
@@ -2781,7 +2788,7 @@ function App() {
               </div>
 
               {/* Ripristina */}
-              <button className="btn" onClick={()=>{setTheme({bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#888",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"});setSidebarBg("#1e2d40");setWelcomeBg("#1a2540");}}
+              <button className="btn" onClick={()=>{setTheme({bg:"#f0f2f5",surface:"#ffffff",border:"#e0e4ea",text:"#1a1a2e",muted:"#475569",textMuted:"#475569",accent:"#4361ee",present:"#2dc653",paused:"#f4a261",absent:"#e05c5c",done:"#4361ee"});setSidebarBg("#1e2d40");setWelcomeBg("#1a2540");}}
                 style={{width:"100%",padding:"12px",background:T.bg,color:T.muted,border:`1px solid ${T.border}`,fontSize:14,borderRadius:8}}>
                 ↺ Ripristina tutto ai valori predefiniti
               </button>
