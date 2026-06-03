@@ -1650,6 +1650,11 @@ function App() {
         .nav-item.active .nav-icon{background:rgba(255,255,255,.2);}
         .nav-item:hover:not(.active) .nav-icon{background:#334155;}
         .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+        .mobile-nav{display:none;}
+        .mob-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:none;border:none;cursor:pointer;font-family:Arial,sans-serif;}
+        .mob-btn span:first-child{font-size:20px;line-height:1;color:#94a3b8;}
+        .mob-btn span:last-child{font-size:10px;color:#94a3b8;font-weight:600;}
+        .mob-btn.active span:first-child, .mob-btn.active span:last-child{color:#3b82f6;}
         @media(max-width:900px){
           .sidebar-full{display:none!important;}
           .grid-2col{grid-template-columns:1fr!important;}
@@ -1663,10 +1668,6 @@ function App() {
         @media(min-width:901px) and (max-width:1100px){
           main{padding:18px 18px!important;}
         }
-        .mob-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:none;border:none;cursor:pointer;font-family:Arial,sans-serif;}
-        .mob-btn span:first-child{font-size:20px;line-height:1;}
-        .mob-btn span:last-child{font-size:10px;color:#94a3b8;font-weight:600;}
-        .mob-btn.active span:last-child{color:#3b82f6;}
         .card{background:#1f2937;border:1px solid #374151;border-radius:14px;}
         .stat-card{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:20px 22px;}
       `}</style>
@@ -1733,6 +1734,36 @@ function App() {
           </button>
         </div>
       </aside>
+
+      {/* ── BARRA MOBILE in basso (visibile solo su mobile/tablet stretto) ── */}
+      <nav className="mobile-nav">
+        {[
+          {id:"dashboard",  label:"Home",    icon:"🏠"},
+          {id:"timbrature", label:"Timbra",  icon:"⏱"},
+          {id:"live",       label:"Live",    icon:"●"},
+          {id:"alert",      label:"Alert",   icon:"🔔"},
+          {id:"tutorial",   label:"Guida",   icon:"❓"},
+          {id:"admin",      label:"Admin",   icon:"⚙"},
+        ].map(item=>(
+          <button key={item.id} className={`mob-btn${view===item.id?" active":""}`} onClick={()=>{
+            if(item.id==="admin" && !adminUnlocked){
+              const tentativo = window.prompt("🔐 Accesso area Amministratore\n\nInserisci il PIN admin:");
+              if(tentativo===null) return;
+              if(tentativo===pinAdmin){
+                setAdminUnlocked(true);
+                setView("admin");
+              } else {
+                alert("❌ PIN admin errato. Accesso negato.");
+              }
+              return;
+            }
+            setView(item.id);
+          }}>
+            <span>{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {/* ── CONTENUTO PRINCIPALE ── */}
       <div className="main-content" style={{flex:1,marginLeft:240,display:"flex",flexDirection:"column",minHeight:"100vh",alignItems:"stretch",minWidth:0,overflowX:"hidden"}}>
