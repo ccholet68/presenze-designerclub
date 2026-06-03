@@ -1012,8 +1012,11 @@ function App() {
   const [screen, setScreen] = useState("login"); // login | welcome | app
   const [pinAziendale, setPinAziendale] = useState("1234"); // PIN modificabile da Admin
   const [pinAdmin, setPinAdmin] = useState("9999"); // PIN amministratore (default, cambialo dopo il primo ingresso)
+  const [pinSedeA1, setPinSedeA1] = useState("1234"); // PIN configurazione postazione A1
+  const [pinSedeC1C2, setPinSedeC1C2] = useState("1234"); // PIN configurazione postazione C1-C2
   const [adminUnlocked, setAdminUnlocked] = useState(false); // true dopo aver inserito correttamente il PIN admin in questa sessione
   const [emailAdmin, setEmailAdmin] = useState(""); // email amministratore per notifiche
+  const [sedePostazione, setSedePostazione] = useState(null); // sede configurata su questo dispositivo (null = non configurata)
   const [loginCodice, setLoginCodice] = useState("");
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -1056,7 +1059,10 @@ function App() {
       try {
         const r1 = localStorage.getItem("dc_records"); if (r1) setRecords(JSON.parse(r1));
         const r2 = localStorage.getItem("dc_visitatori"); if (r2) setVisitatori(JSON.parse(r2));
-        const r3 = localStorage.getItem("dc_people_extra"); if (r3) { const extra = JSON.parse(r3); setPeople(prev => { const existingIds = new Set(prev.map(p=>p.id)); return [...prev, ...extra.filter(p=>!existingIds.has(p.id))]; }); } } catch(e) { console.log("Storage vuoto o errore:", e); }
+        const r3 = localStorage.getItem("dc_people_extra"); if (r3) { const extra = JSON.parse(r3); setPeople(prev => { const existingIds = new Set(prev.map(p=>p.id)); return [...prev, ...extra.filter(p=>!existingIds.has(p.id))]; }); }
+        // Sede configurata su questo dispositivo (preferenza locale, non sincronizzata)
+        const sp = localStorage.getItem("dc_sede_postazione"); if (sp === "a1" || sp === "c1c2") setSedePostazione(sp);
+      } catch(e) { console.log("Storage vuoto o errore:", e); }
 
       // 2) Caricamento da Supabase (fonte di verità condivisa fra dispositivi).
       //    Se non risponde entro 8 secondi → fallback: si tiene quanto già caricato dal localStorage.
@@ -1073,6 +1079,10 @@ function App() {
           if (pin?.valore) setPinAziendale(pin.valore);
           const pinA = imp.find(x => x.chiave === "pin_admin");
           if (pinA?.valore) setPinAdmin(pinA.valore);
+          const pinSA1 = imp.find(x => x.chiave === "pin_sede_a1");
+          if (pinSA1?.valore) setPinSedeA1(pinSA1.valore);
+          const pinSCC = imp.find(x => x.chiave === "pin_sede_c1c2");
+          if (pinSCC?.valore) setPinSedeC1C2(pinSCC.valore);
           const em = imp.find(x => x.chiave === "email_admin");
           if (em?.valore) setEmailAdmin(em.valore);
         }
@@ -1185,7 +1195,7 @@ function App() {
 
   function handleCheckIn(id, sede) {
     const person = people.find(p=>p.id===id);
-    const sedeId = sede || SEDE_DEFAULT_REPARTO[person?.deptId] || "a1";
+    const sedeId = sede || sedePostazione || SEDE_DEFAULT_REPARTO[person?.deptId] || "a1";
     setRecords(prev=>({...prev,[todayKey]:{...(prev[todayKey]||{}),[id]:{in:new Date(),out:null,pauses:[],sede:sedeId}}}));
   }
   function handleCheckOut(id) {
@@ -1348,6 +1358,41 @@ function App() {
   });
 
   const setThemeKey = (k,v) => setTheme(t=>({...t,[k]:v}));
+
+  // ── Schermata SETUP postazione (mostrata se sedePostazione non è ancora configurata) ─
+  if (storageReady && sedePostazione === null && screen === "login") return (
+    <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"Arial,'Helvetica Neue',Helvetica,sans-serif",padding:"40px 20px"}}>
+      <div style={{maxWidth:480,width:"100%",background:"#1e2d40",border:"1px solid #2d4060",borderRadius:18,padding:"36px 32px",textAlign:"center",boxShadow:"0 20px 50px rgba(0,0,0,.4)"}}>
+        <div style={{fontSize:48,marginBottom:12}}>📍</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#f1f5f9",marginBottom:6}}>Configura postazione</div>
+        <div style={{fontSize:14,color:"#94a3b8",marginBottom:28,lineHeight:1.5}}>Questo dispositivo non è ancora associato a una sede. Seleziona dove si trova fisicamente per registrare correttamente le timbrature.</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          {SEDI.map(s=>(
+            <button key={s.id} className="btn" onClick={()=>{
+              const pinAtteso = s.id==="a1" ? pinSedeA1 : pinSedeC1C2;
+              const tentativo = window.prompt(`🔐 Configurazione postazione ${s.name}\n\nInserisci il PIN della sede:`);
+              if(tentativo===null) return;
+              if(tentativo===pinAtteso){
+                setSedePostazione(s.id);
+                try { localStorage.setItem("dc_sede_postazione", s.id); } catch(e){}
+                alert(`✅ Postazione configurata: ${s.name} (${s.desc}).\n\nDa ora le timbrature fatte da questo dispositivo saranno registrate come ${s.name}.`);
+              } else {
+                alert("❌ PIN errato. Postazione non configurata.");
+              }
+            }}
+              style={{padding:"24px 16px",background:`${s.color}22`,border:`2px solid ${s.color}`,borderRadius:14,color:"#f1f5f9",cursor:"pointer"}}>
+              <div style={{fontSize:32,marginBottom:8}}>{s.id==="a1"?"🏢":"🏭"}</div>
+              <div style={{fontSize:17,fontWeight:800,marginBottom:3}}>{s.name}</div>
+              <div style={{fontSize:12,color:"#94a3b8"}}>{s.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:"#64748b",marginTop:22,padding:"10px 12px",background:"#0f172a",borderRadius:8,border:"1px solid #2d4060",lineHeight:1.5}}>
+          ℹ️ Questa configurazione viene memorizzata sul dispositivo e si applica solo a esso. L'amministratore può modificarla in qualsiasi momento da Admin → Sedi.
+        </div>
+      </div>
+    </div>
+  );
 
   // ── Schermata LOGIN ──────────────────────────────────────────
   if (screen === "login") return (
@@ -2520,6 +2565,66 @@ function App() {
                     🛡️ Cambia PIN Admin
                   </button>
                 </div>
+                {/* Cambio PIN Sede A1 */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN configurazione postazione <strong style={{color:"#3b82f6"}}>A1 (Uffici)</strong></div>
+                    <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinSedeA1.length)}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2}}>Richiesto quando un nuovo dispositivo viene configurato come postazione A1</div>
+                  </div>
+                  <button className="btn" onClick={async ()=>{
+                    const newPin=window.prompt("Inserisci il nuovo PIN per la postazione A1 (4-8 cifre):");
+                    if(!newPin) return;
+                    if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    const vecchioPin = pinSedeA1;
+                    setPinSedeA1(newPin);
+                    sb.upsert("impostazioni", {chiave:"pin_sede_a1", valore:newPin}).catch(()=>{});
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN postazione A1 aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN A1:", e);
+                        alert("✅ PIN postazione A1 aggiornato, ma l'invio dell'email è fallito.");
+                      }
+                    } else {
+                      alert("✅ PIN postazione A1 aggiornato!");
+                    }
+                  }}
+                    style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
+                    🏢 Cambia PIN A1
+                  </button>
+                </div>
+                {/* Cambio PIN Sede C1-C2 */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN configurazione postazione <strong style={{color:"#f59e0b"}}>C1-C2 (Magazzino/Produzione)</strong></div>
+                    <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinSedeC1C2.length)}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2}}>Richiesto quando un nuovo dispositivo viene configurato come postazione C1-C2</div>
+                  </div>
+                  <button className="btn" onClick={async ()=>{
+                    const newPin=window.prompt("Inserisci il nuovo PIN per la postazione C1-C2 (4-8 cifre):");
+                    if(!newPin) return;
+                    if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    const vecchioPin = pinSedeC1C2;
+                    setPinSedeC1C2(newPin);
+                    sb.upsert("impostazioni", {chiave:"pin_sede_c1c2", valore:newPin}).catch(()=>{});
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN postazione C1-C2 aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN C1-C2:", e);
+                        alert("✅ PIN postazione C1-C2 aggiornato, ma l'invio dell'email è fallito.");
+                      }
+                    } else {
+                      alert("✅ PIN postazione C1-C2 aggiornato!");
+                    }
+                  }}
+                    style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
+                    🏭 Cambia PIN C1-C2
+                  </button>
+                </div>
                 {/* Email amministratore per notifiche */}
                 <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
                   <div>
@@ -2660,6 +2765,31 @@ function App() {
 
               {adminTab==="sedi"&&(
                 <div className="fade-in">
+                  {/* Postazione di questo dispositivo */}
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:6,textTransform:"uppercase",letterSpacing:".05em"}}>💻 Postazione di questo dispositivo</div>
+                    <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{fontSize:13,color:T.muted,marginBottom:4}}>Sede attualmente configurata:</div>
+                        <div style={{fontSize:18,fontWeight:800,color:sedePostazione?(SEDI.find(s=>s.id===sedePostazione)?.color||T.text):T.muted}}>
+                          {sedePostazione ? `${sedePostazione==="a1"?"🏢":"🏭"} ${SEDI.find(s=>s.id===sedePostazione)?.name} (${SEDI.find(s=>s.id===sedePostazione)?.desc})` : "Non configurata"}
+                        </div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:4}}>Tutte le timbrature fatte da questo dispositivo vengono registrate con questa sede.</div>
+                      </div>
+                      {sedePostazione && (
+                        <button className="btn" onClick={()=>{
+                          if(!window.confirm("Vuoi azzerare la configurazione della postazione di questo dispositivo?\n\nAlla prossima apertura dell'app verrà richiesto di scegliere e configurare nuovamente la sede.")) return;
+                          setSedePostazione(null);
+                          try { localStorage.removeItem("dc_sede_postazione"); } catch(e){}
+                          alert("✅ Postazione azzerata. Ricarica la pagina per riconfigurare il dispositivo.");
+                        }}
+                          style={{padding:"8px 14px",background:"#ef4444",color:"#fff",border:"none",fontSize:13,fontWeight:600}}>
+                          🔄 Reset postazione
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"22px 24px",marginBottom:16}}>
                     <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:4}}>📍 Gestione Sedi</div>
                     <div style={{fontSize:13,color:T.muted,marginBottom:20}}>Configura le sedi aziendali e la sede di default per ogni reparto.</div>
