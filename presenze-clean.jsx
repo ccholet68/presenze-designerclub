@@ -1549,8 +1549,6 @@ function App() {
     {id:"timbrature",label:"Timbrature",  icon:"⏱"},
     {id:"live",      label:"Stato Live",  icon:"●"},
     {id:"alert",     label:"Alert",       icon:"🔔"},
-    {id:"storico",   label:"Storico",     icon:"📋"},
-    {id:"archivio",  label:"Archivio",    icon:"📁"},
     {id:"tutorial",  label:"Tutorial",    icon:"❓"},
     {id:"admin",     label:"Admin",       icon:"⚙"},
   ];
@@ -1640,12 +1638,6 @@ function App() {
           <button className="nav-item" onClick={()=>{setVisitorDefaultType("visitatore");setShowVisitorModal(true);}}>
             <span className="nav-icon">🪪</span><span>Registra visitatore</span>
           </button>
-          <button className="nav-item" onClick={()=>setShowDepts(true)}>
-            <span className="nav-icon">🏢</span><span>Gestisci reparti</span>
-          </button>
-          <button className="nav-item" onClick={()=>setShowAddPerson(true)}>
-            <span className="nav-icon">➕</span><span>Aggiungi persona</span>
-          </button>
         </nav>
 
         {/* Footer sidebar */}
@@ -1673,10 +1665,12 @@ function App() {
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <span style={{fontSize:12,background:"#fee2e2",color:"#dc2626",padding:"3px 10px",borderRadius:20,fontWeight:700,letterSpacing:".08em"}}>⚡ BETATEST</span>
-            <button className="btn" onClick={()=>setShowAddPerson(true)}
-              style={{padding:"7px 16px",background:"#1e3a5f",color:"#fff",border:"none",fontSize:13}}>
-              + Aggiungi
-            </button>
+            {adminUnlocked && (
+              <button className="btn" onClick={()=>setShowAddPerson(true)}
+                style={{padding:"7px 16px",background:"#1e3a5f",color:"#fff",border:"none",fontSize:13}}>
+                + Aggiungi
+              </button>
+            )}
           </div>
         </header>
 
@@ -1935,7 +1929,18 @@ function App() {
           )}
 
           {/* ── STORICO ── */}
-          {view==="storico" && (
+          {view==="storico" && !adminUnlocked && (
+            <div className="fade-in" style={{padding:"60px 20px",textAlign:"center"}}>
+              <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+              <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:8}}>Area riservata</div>
+              <div style={{fontSize:14,color:T.muted,marginBottom:18}}>Lo Storico è accessibile solo dall'Amministratore.</div>
+              <button className="btn" onClick={()=>setView("dashboard")}
+                style={{padding:"10px 18px",background:T.accent,color:"#fff",border:"none",fontSize:14,fontWeight:600}}>
+                ← Torna alla Dashboard
+              </button>
+            </div>
+          )}
+          {view==="storico" && adminUnlocked && (
             <div className="fade-in">
               <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"20px 22px"}}>
                 <div style={{fontSize:13,color:T.textMuted,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em",marginBottom:16}}>Riepilogo — {now.toLocaleDateString("it-IT")}</div>
@@ -1971,7 +1976,18 @@ function App() {
           )}
 
           {/* ── ARCHIVIO ── */}
-          {view==="archivio" && (
+          {view==="archivio" && !adminUnlocked && (
+            <div className="fade-in" style={{padding:"60px 20px",textAlign:"center"}}>
+              <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+              <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:8}}>Area riservata</div>
+              <div style={{fontSize:14,color:T.muted,marginBottom:18}}>L'Archivio è accessibile solo dall'Amministratore.</div>
+              <button className="btn" onClick={()=>setView("dashboard")}
+                style={{padding:"10px 18px",background:T.accent,color:"#fff",border:"none",fontSize:14,fontWeight:600}}>
+                ← Torna alla Dashboard
+              </button>
+            </div>
+          )}
+          {view==="archivio" && adminUnlocked && (
             <div className="fade-in">
               {/* Banner stato storage */}
               <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16}}>
@@ -2520,8 +2536,12 @@ function App() {
                   </div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"],["struttura","🏗 Struttura"]].map(([id,lbl])=>(
-                    <button key={id} className="btn" onClick={()=>setAdminTab(id)}
+                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"],["storico","📋 Storico"],["archivio","📁 Archivio"],["struttura","🏗 Struttura"]].map(([id,lbl])=>(
+                    <button key={id} className="btn" onClick={()=>{
+                      if(id==="storico"){setView("storico");return;}
+                      if(id==="archivio"){setView("archivio");return;}
+                      setAdminTab(id);
+                    }}
                       style={{padding:"8px 16px",background:adminTab===id?T.accent:T.bg,color:adminTab===id?"#fff":T.muted,border:`1px solid ${adminTab===id?T.accent:T.border}`,fontSize:14,fontWeight:600}}>
                       {lbl}
                     </button>
@@ -2766,6 +2786,16 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
                     <div style={{fontSize:15,fontWeight:700,color:T.text}}>👥 Gestione Dipendenti ({people.filter(p=>p.type==="dipendente").length})</div>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {/* Aggiungi persona */}
+                      <button className="btn" onClick={()=>setShowAddPerson(true)}
+                        style={{padding:"7px 13px",background:T.accent,color:"#fff",border:"none",fontSize:13,fontWeight:600}}>
+                        ➕ Aggiungi persona
+                      </button>
+                      {/* Gestisci reparti */}
+                      <button className="btn" onClick={()=>setShowDepts(true)}
+                        style={{padding:"7px 13px",background:T.bg,color:T.text,border:`1px solid ${T.border}`,fontSize:13,fontWeight:600}}>
+                        🏢 Gestisci reparti
+                      </button>
                       {/* Esporta dipendenti (CSV con tutti i dati reali, compatibile con l'importazione) */}
                       <button className="btn" onClick={()=>{
                         const BOM="\uFEFF";
