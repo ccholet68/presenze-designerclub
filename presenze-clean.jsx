@@ -1029,7 +1029,7 @@ function App() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [sidebarBg, setSidebarBg] = useState("#1e2d40");
   const [welcomeBg, setWelcomeBg] = useState("#1a2540");
-  const [mailList, setMailList] = useState(["cedric.cholet@designerclub.com"]); // lista email per invio presenze
+  const [mailList, setMailList] = useState(["","","","",""]); // 5 slot fissi per email destinatari
   const [showMailConfig, setShowMailConfig] = useState(false);
   const [mailInput, setMailInput] = useState("");
   const [mailSent, setMailSent] = useState(false);
@@ -1085,6 +1085,16 @@ function App() {
           if (pinSCC?.valore) setPinSedeC1C2(pinSCC.valore);
           const em = imp.find(x => x.chiave === "email_admin");
           if (em?.valore) setEmailAdmin(em.valore);
+          const ml = imp.find(x => x.chiave === "mail_list");
+          if (ml?.valore) {
+            try {
+              const parsed = JSON.parse(ml.valore);
+              if (Array.isArray(parsed)) {
+                const padded = [...parsed, "", "", "", "", ""].slice(0, 5);
+                setMailList(padded);
+              }
+            } catch(e) { /* valore non-JSON, ignora */ }
+          }
         }
       } catch(e) { console.warn("Impostazioni: uso valori locali.", e?.message); }
 
@@ -1189,6 +1199,12 @@ function App() {
     }));
     sb.upsert("persone_extra", toUpsert).catch(()=>{});
   }, [people, storageReady]);
+
+  // Salva la lista dei 5 destinatari email su Supabase ogni volta che cambia
+  useEffect(() => {
+    if (!storageReady) return;
+    sb.upsert("impostazioni", {chiave:"mail_list", valore: JSON.stringify(mailList)}).catch(()=>{});
+  }, [mailList, storageReady]);
 
   const todayKey = now.toISOString().slice(0,10);
   const getRecord = id => records[todayKey]?.[id] || null;
@@ -2331,7 +2347,16 @@ function App() {
                     ✉️ Configura email
                   </button>
                   <button className="btn" disabled={mailSending} onClick={async()=>{
-                    if(mailList.length===0){setMailError("Aggiungi almeno un indirizzo email.");return;}
+                    // Costruisci la lista destinatari: email admin (se presente) + slot non vuoti, deduplicati
+                    const validate = (s)=> typeof s==="string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+                    const slotsValidi = mailList.filter(validate).map(s=>s.trim());
+                    const slotsInvalidi = mailList.filter(s=>s && s.trim() && !validate(s));
+                    if(slotsInvalidi.length>0){
+                      setMailError(`Email non valida: ${slotsInvalidi.join(", ")}`);
+                      return;
+                    }
+                    const destinatari = [...new Set([...(emailAdmin && validate(emailAdmin) ? [emailAdmin.trim()] : []), ...slotsValidi])];
+                    if(destinatari.length===0){setMailError("Aggiungi almeno un indirizzo email (o imposta l'email amministratore in Admin).");return;}
                     setMailSending(true); setMailError("");
                     const presenti=people.filter(p=>statusOf(getRecord(p.id))==="present");
                     const inPausa=people.filter(p=>statusOf(getRecord(p.id))==="paused");
@@ -2354,7 +2379,7 @@ function App() {
                     msg+=`\nTotale in azienda: ${presenti.length+inPausa.length} persone\n\nInviato da Presenze.App — Designer Club Srl`;
                     const subject=`Presenze Designer Club — ${data} ore ${ora}`;
                     try {
-                      await Promise.all(mailList.map(to=>sendEmailJS(to, subject, msg)));
+                      await Promise.all(destinatari.map(to=>sendEmailJS(to, subject, msg)));
                       setMailSent(true);
                       setTimeout(()=>setMailSent(false),4000);
                     } catch(e) {
@@ -2370,47 +2395,38 @@ function App() {
               </div>
 
               {mailError&&<div style={{background:"#e05c5c18",border:"1px solid #e05c5c44",borderRadius:8,padding:"10px 16px",marginBottom:12,fontSize:13,color:"#e05c5c"}}>⚠ {mailError}</div>}
-              {/* Pannello configurazione email */}
+              {/* Pannello configurazione email — 5 slot fissi */}
               {showMailConfig&&(
                 <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 20px",marginBottom:16}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:12}}>✉️ Destinatari email</div>
-                  <div style={{display:"flex",gap:8,marginBottom:12}}>
-                    <input value={mailInput} onChange={e=>setMailInput(e.target.value)}
-                      onKeyDown={e=>{
-                        if(e.key==="Enter"&&mailInput.includes("@")){
-                          setMailList(prev=>[...prev.filter(m=>m!==mailInput.trim()),mailInput.trim()]);
-                          setMailInput("");
-                        }
-                      }}
-                      placeholder="esempio@email.com" type="email"
-                      style={{flex:1,background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:14,padding:"8px 12px",outline:"none"}}/>
-                    <button className="btn" onClick={()=>{
-                      if(mailInput.includes("@")){
-                        setMailList(prev=>[...prev.filter(m=>m!==mailInput.trim()),mailInput.trim()]);
-                        setMailInput("");
-                      }
-                    }} style={{padding:"8px 16px",background:T.accent,color:"#fff",border:"none",fontSize:14,fontWeight:700}}>
-                      + Aggiungi
-                    </button>
+                  <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:4}}>✉️ Destinatari email (max 5 + amministratore)</div>
+                  <div style={{fontSize:12,color:T.muted,marginBottom:14}}>Inserisci fino a 5 indirizzi email. L'email dell'amministratore viene aggiunta automaticamente in cima.</div>
+
+                  {/* Email amministratore (in sola lettura) */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:`${T.accent}12`,border:`1px solid ${T.accent}55`,borderRadius:8,marginBottom:12}}>
+                    <span style={{fontSize:11,color:T.accent,fontWeight:700,minWidth:90}}>★ AMMINISTRATORE</span>
+                    <span style={{flex:1,fontSize:13,color:T.text,fontFamily:"monospace"}}>{emailAdmin || <span style={{color:T.muted,fontStyle:"italic"}}>nessuna (imposta in Admin → Dipendenti)</span>}</span>
                   </div>
-                  {mailList.length===0
-                    ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>Nessun destinatario configurato</div>
-                    : <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                        {mailList.map(m=>{
-                          const isFixed = m==="cedric.cholet@designerclub.com";
-                          return (
-                            <div key={m} style={{display:"flex",alignItems:"center",gap:6,background:isFixed?`${T.accent}25`:`${T.accent}15`,border:`1px solid ${isFixed?T.accent+"88":T.accent+"44"}`,borderRadius:20,padding:"4px 12px",fontSize:13}}>
-                              {isFixed&&<span style={{fontSize:10,color:T.accent,fontWeight:700}}>★</span>}
-                              <span style={{color:T.text}}>{m}</span>
-                              {!isFixed&&<button onClick={()=>setMailList(prev=>prev.filter(x=>x!==m))}
-                                style={{background:"none",border:"none",cursor:"pointer",color:T.muted,fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                  }
-                  <div style={{fontSize:12,color:T.muted,marginTop:10}}>
-                    💡 Il pulsante "Invia presenze" apre il tuo client email (Outlook, Mail, Gmail) con la lista precompilata pronta da inviare.
+
+                  {/* 5 slot fissi */}
+                  {[0,1,2,3,4].map(i=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                      <span style={{fontSize:12,color:T.muted,fontWeight:700,minWidth:90}}>Destinatario {i+1}</span>
+                      <input
+                        value={mailList[i]||""}
+                        onChange={e=>setMailList(prev=>{const next=[...prev];while(next.length<5)next.push("");next[i]=e.target.value;return next;})}
+                        placeholder={i===0?"esempio@email.com":"(facoltativo)"}
+                        type="email"
+                        style={{flex:1,background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:14,padding:"8px 12px",outline:"none"}}/>
+                      {mailList[i] && (
+                        <button onClick={()=>setMailList(prev=>{const next=[...prev];while(next.length<5)next.push("");next[i]="";return next;})}
+                          title="Svuota questo campo"
+                          style={{background:"none",border:"none",cursor:"pointer",color:T.muted,fontSize:16,padding:"4px 8px"}}>×</button>
+                      )}
+                    </div>
+                  ))}
+
+                  <div style={{fontSize:12,color:T.muted,marginTop:12,padding:"10px 12px",background:T.bg,borderRadius:8,border:`1px solid ${T.border}`,lineHeight:1.5}}>
+                    💡 Il pulsante <strong style={{color:T.text}}>"📤 Invia presenze"</strong> invia automaticamente l'email a tutti i destinatari validi (compresa quella amministratore). Gli slot vuoti vengono ignorati.
                   </div>
                 </div>
               )}
