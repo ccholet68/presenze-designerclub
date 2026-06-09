@@ -1012,10 +1012,12 @@ function App() {
   const [screen, setScreen] = useState("login"); // login | welcome | app
   const [pinAziendale, setPinAziendale] = useState("1234"); // PIN modificabile da Admin
   const [pinAdmin, setPinAdmin] = useState("9999"); // PIN amministratore (default, cambialo dopo il primo ingresso)
-  const [pinLoginAdmin, setPinLoginAdmin] = useState("9999"); // PIN per accesso admin diretto dalla schermata di login
+  const [pinLoginAdmin, setPinLoginAdmin] = useState("9999"); // PIN per accesso admin di livello 1 (codice "admin" dal login)
+  const [pinSuperAdmin, setPinSuperAdmin] = useState("8888"); // PIN per accesso super-admin di livello 2 (codice "superadmin" dal login)
   const [pinSedeA1, setPinSedeA1] = useState("1234"); // PIN configurazione postazione A1
   const [pinSedeC1C2, setPinSedeC1C2] = useState("1234"); // PIN configurazione postazione C1-C2
   const [adminUnlocked, setAdminUnlocked] = useState(false); // true dopo aver inserito correttamente il PIN admin in questa sessione
+  const [superAdminUnlocked, setSuperAdminUnlocked] = useState(false); // true solo se entrato con login "admin" diretto (livello 2)
   const [emailAdmin, setEmailAdmin] = useState(""); // email amministratore per notifiche
   const [idleTimeoutMin, setIdleTimeoutMin] = useState(3); // minuti di inattività prima del logout automatico (0 = disattivato)
   const [sedePostazione, setSedePostazione] = useState(null); // sede configurata su questo dispositivo (null = non configurata)
@@ -1083,6 +1085,8 @@ function App() {
           if (pinA?.valore) setPinAdmin(pinA.valore);
           const pinLA = imp.find(x => x.chiave === "pin_login_admin");
           if (pinLA?.valore) setPinLoginAdmin(pinLA.valore);
+          const pinSA = imp.find(x => x.chiave === "pin_super_admin");
+          if (pinSA?.valore) setPinSuperAdmin(pinSA.valore);
           const pinSA1 = imp.find(x => x.chiave === "pin_sede_a1");
           if (pinSA1?.valore) setPinSedeA1(pinSA1.valore);
           const pinSCC = imp.find(x => x.chiave === "pin_sede_c1c2");
@@ -1228,6 +1232,7 @@ function App() {
     const onTimeout = () => {
       // Torna alla welcome, chiude la sessione admin e svuota i campi di login
       setAdminUnlocked(false);
+      setSuperAdminUnlocked(false);
       setLoggedPerson(null);
       setLoginCodice("");
       setLoginPin("");
@@ -1518,12 +1523,24 @@ function App() {
             maxLength={8}
             onKeyDown={e=>{
               if(e.key==="Enter"){
-                // Caso speciale: login amministratore con codice "admin"
-                if(loginCodice.trim().toLowerCase()==="admin"){
-                  if(loginPin!==pinLoginAdmin){setLoginError("PIN admin errato");return;}
-                  // Sblocca la sessione admin e associa Cedric come dipendente loggato
+                const codiceLower = loginCodice.trim().toLowerCase();
+                // Caso speciale 1: login super-admin (livello 2, proprietario)
+                if(codiceLower==="superadmin"){
+                  if(loginPin!==pinSuperAdmin){setLoginError("PIN super-admin errato");return;}
                   const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
                   setAdminUnlocked(true);
+                  setSuperAdminUnlocked(true);
+                  setLoggedPerson(cedric);
+                  setScreen("welcome");
+                  setLoginCodice(""); setLoginPin(""); setLoginError("");
+                  return;
+                }
+                // Caso speciale 2: login admin standard (livello 1, amministrazione)
+                if(codiceLower==="admin"){
+                  if(loginPin!==pinLoginAdmin){setLoginError("PIN admin errato");return;}
+                  const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
+                  setAdminUnlocked(true);
+                  setSuperAdminUnlocked(false); // livello 1 non sblocca il livello 2
                   setLoggedPerson(cedric);
                   setScreen("welcome");
                   setLoginCodice(""); setLoginPin(""); setLoginError("");
@@ -1550,11 +1567,24 @@ function App() {
 
         {/* Pulsante accedi */}
         <button onClick={()=>{
-          // Caso speciale: login amministratore con codice "admin"
-          if(loginCodice.trim().toLowerCase()==="admin"){
+          const codiceLower = loginCodice.trim().toLowerCase();
+          // Caso speciale 1: login super-admin (livello 2, proprietario)
+          if(codiceLower==="superadmin"){
+            if(loginPin!==pinSuperAdmin){setLoginError("PIN super-admin errato");return;}
+            const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
+            setAdminUnlocked(true);
+            setSuperAdminUnlocked(true);
+            setLoggedPerson(cedric);
+            setScreen("welcome");
+            setLoginCodice(""); setLoginPin(""); setLoginError("");
+            return;
+          }
+          // Caso speciale 2: login admin standard (livello 1, amministrazione)
+          if(codiceLower==="admin"){
             if(loginPin!==pinLoginAdmin){setLoginError("PIN admin errato");return;}
             const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
             setAdminUnlocked(true);
+            setSuperAdminUnlocked(false);
             setLoggedPerson(cedric);
             setScreen("welcome");
             setLoginCodice(""); setLoginPin(""); setLoginError("");
@@ -1803,7 +1833,7 @@ function App() {
           <button className="nav-item" onClick={()=>setScreen("welcome")} style={{color:"#94a3b8"}}>
             <span className="nav-icon">🏠</span><span>Home</span>
           </button>
-          <button className="nav-item" onClick={()=>{setScreen("login");setLoggedPerson(null);}} style={{color:"#ef4444"}}>
+          <button className="nav-item" onClick={()=>{setScreen("login");setLoggedPerson(null);setAdminUnlocked(false);setSuperAdminUnlocked(false);}} style={{color:"#ef4444"}}>
             <span className="nav-icon">🚪</span><span>Esci / Cambia utente</span>
           </button>
         </div>
@@ -2071,8 +2101,8 @@ function App() {
                           </div>}
                         </div>
                       </div>
-                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita — visibile solo all'amministratore */}
-                      {rec && adminUnlocked && (()=>{
+                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita + conteggio pause — visibile solo al super-admin (proprietario) */}
+                      {rec && superAdminUnlocked && (()=>{
                         // Cerca tra i rientri quello che ha un'uscita nella finestra pranzo 12:15-14:15
                         const isLunchTime = (t) => {
                           if (!t) return false;
@@ -2088,14 +2118,27 @@ function App() {
                         const rientroPranzo = lunchCycle?.rientro || null;
                         // L'uscita finale è rec.out solo se NON è la stessa dell'uscita pranzo
                         const uscitaFinale = rec.out && rec.out !== uscitaPranzo ? rec.out : null;
+
+                        // Conteggio pause vere (pulsante Pausa), separando quelle nella finestra pranzo
+                        const allPauses = rec.pauses || [];
+                        const pausaInLunchWindow = (p) => p.start && isLunchTime(p.start);
+                        const minutiPausa = (p) => {
+                          if (!p.start || !p.end) return 0;
+                          return Math.round((new Date(p.end) - new Date(p.start)) / 60000);
+                        };
+                        const pauseNormali = allPauses.filter(p => !pausaInLunchWindow(p));
+                        const pausePranzo  = allPauses.filter(p =>  pausaInLunchWindow(p));
+                        const minutiPauseNormali = pauseNormali.reduce((s,p) => s + minutiPausa(p), 0);
+                        const minutiPausePranzo  = pausePranzo.reduce((s,p)  => s + minutiPausa(p), 0);
+
                         const slot = (label, time, color2) => (
                           <div style={{flex:1,minWidth:0,textAlign:"center",padding:"4px 6px"}}>
                             <div style={{fontSize:10,color:T.textMuted,textTransform:"uppercase",letterSpacing:".04em",marginBottom:2,fontWeight:600}}>{label}</div>
                             <div style={{fontSize:13,fontWeight:700,color: time ? color2 : T.textMuted,fontFamily:"monospace"}}>{time ? fmtTime(time) : "—"}</div>
                           </div>
                         );
-                        return (
-                          <div style={{display:"flex",alignItems:"stretch",padding:"6px 10px",borderTop:`1px dashed ${T.border}`,borderBottom:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:2}}>
+                        return (<>
+                          <div style={{display:"flex",alignItems:"stretch",padding:"6px 10px",borderTop:`1px dashed ${T.border}`,borderBottom:pauseNormali.length||pausePranzo.length?`none`:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:2}}>
                             {slot("Entrata",  rec.in,         T.present)}
                             <div style={{width:1,background:T.border,opacity:.5}}/>
                             {slot("Pranzo",   uscitaPranzo,   "#f59e0b")}
@@ -2104,7 +2147,21 @@ function App() {
                             <div style={{width:1,background:T.border,opacity:.5}}/>
                             {slot("Uscita",   uscitaFinale,   T.done)}
                           </div>
-                        );
+                          {(pauseNormali.length>0 || pausePranzo.length>0) && (
+                            <div style={{display:"flex",alignItems:"center",padding:"5px 12px",borderBottom:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:14,fontSize:11,flexWrap:"wrap"}}>
+                              {pauseNormali.length>0 && (
+                                <span style={{color:T.paused,fontWeight:600}}>
+                                  🛑 Pause: <strong style={{fontFamily:"monospace"}}>{pauseNormali.length}</strong> · <strong style={{fontFamily:"monospace"}}>{minutiPauseNormali} min</strong> totali
+                                </span>
+                              )}
+                              {pausePranzo.length>0 && (
+                                <span style={{color:"#f59e0b",fontWeight:600}}>
+                                  🍴 Pranzo (Pausa): <strong style={{fontFamily:"monospace"}}>{pausePranzo.length}</strong> · <strong style={{fontFamily:"monospace"}}>{minutiPausePranzo} min</strong>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </>);
                       })()}
                       {/* Azioni */}
                       <div style={{padding:"10px 14px",display:"flex",gap:7,alignItems:"center"}}>
@@ -2793,6 +2850,13 @@ function App() {
                   <div style={{fontSize:20,fontWeight:800,color:T.text,marginBottom:4}}>⚙️ Pannello Admin</div>
                   <div style={{fontSize:14,color:T.muted}}>Impostazioni avanzate e personalizzazione</div>
                 </div>
+                {/* I 5 PIN sono modificabili solo dal super-admin (chi entra con login "admin") */}
+                {!superAdminUnlocked && (
+                  <div style={{background:T.bg,border:`1px dashed ${T.border}`,borderRadius:10,padding:"12px 16px",fontSize:13,color:T.muted,lineHeight:1.5}}>
+                    🔒 La modifica dei <strong style={{color:T.text}}>PIN di sistema</strong> (PIN aziendale, admin, login admin, sedi) è riservata al proprietario. Accedi con il login amministratore diretto per modificarli.
+                  </div>
+                )}
+                {superAdminUnlocked && (<>
                 {/* Cambio PIN */}
                 <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
                   <div>
@@ -2886,6 +2950,40 @@ function App() {
                     🔓 Cambia PIN Login Admin
                   </button>
                 </div>
+                {/* Cambio PIN Super-Admin (per accesso super-admin dalla schermata di login con codice "superadmin") */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN Super-Admin (proprietario)</div>
+                    <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinSuperAdmin.length)}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2,maxWidth:380,lineHeight:1.4}}>
+                      Permette di entrare in modalità super-amministratore (livello 2) dalla schermata di login: scrivi <strong style={{color:T.text}}>superadmin</strong> come codice e questo PIN come password. Vedrai conteggio pause, tab Struttura e potrai modificare i PIN.
+                    </div>
+                  </div>
+                  <button className="btn" onClick={async ()=>{
+                    const newPin=window.prompt("Inserisci il nuovo PIN per il login super-admin (4-8 cifre):");
+                    if(!newPin) return;
+                    if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    if(newPin===pinAziendale){alert("⚠️ Il PIN deve essere diverso dal PIN aziendale.");return;}
+                    if(newPin===pinLoginAdmin){alert("⚠️ Il PIN deve essere diverso dal PIN Login Admin (livello 1).");return;}
+                    const vecchioPin = pinSuperAdmin;
+                    setPinSuperAdmin(newPin);
+                    sb.upsert("impostazioni", {chiave:"pin_super_admin", valore:newPin}).catch(()=>{});
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN super-admin aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN super-admin:", e);
+                        alert("✅ PIN super-admin aggiornato, ma l'invio dell'email è fallito.");
+                      }
+                    } else {
+                      alert("✅ PIN super-admin aggiornato!");
+                    }
+                  }}
+                    style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
+                    👑 Cambia PIN Super-Admin
+                  </button>
+                </div>
                 {/* Cambio PIN Sede A1 */}
                 <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
                   <div>
@@ -2946,6 +3044,7 @@ function App() {
                     🏭 Cambia PIN C1-C2
                   </button>
                 </div>
+                </>)}
                 {/* Email amministratore per notifiche */}
                 <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
                   <div>
@@ -2984,7 +3083,7 @@ function App() {
                   </div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"],["storico","📋 Storico"],["archivio","📁 Archivio"],["struttura","🏗 Struttura"]].map(([id,lbl])=>(
+                  {[["colori","🎨 Colori"],["presenze","📅 Presenze"],["dipendenti","👥 Dipendenti"],["sedi","📍 Sedi"],["storico","📋 Storico"],["archivio","📁 Archivio"],...(superAdminUnlocked?[["struttura","🏗 Struttura"]]:[])].map(([id,lbl])=>(
                     <button key={id} className="btn" onClick={()=>{
                       if(id==="storico"){setView("storico");return;}
                       if(id==="archivio"){setView("archivio");return;}
@@ -3474,7 +3573,7 @@ function App() {
                 </div>
               )}
 
-              {adminTab==="struttura"&&(
+              {adminTab==="struttura"&&superAdminUnlocked&&(
                 <div className="fade-in">
                   {/* Intro */}
                   <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:"18px 22px",marginBottom:16}}>
