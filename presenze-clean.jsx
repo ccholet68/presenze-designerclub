@@ -1016,6 +1016,7 @@ function App() {
   const [pinSedeC1C2, setPinSedeC1C2] = useState("1234"); // PIN configurazione postazione C1-C2
   const [adminUnlocked, setAdminUnlocked] = useState(false); // true dopo aver inserito correttamente il PIN admin in questa sessione
   const [emailAdmin, setEmailAdmin] = useState(""); // email amministratore per notifiche
+  const [idleTimeoutMin, setIdleTimeoutMin] = useState(3); // minuti di inattività prima del logout automatico (0 = disattivato)
   const [sedePostazione, setSedePostazione] = useState(null); // sede configurata su questo dispositivo (null = non configurata)
   const [loginCodice, setLoginCodice] = useState("");
   const [loginPin, setLoginPin] = useState("");
@@ -1085,6 +1086,11 @@ function App() {
           if (pinSCC?.valore) setPinSedeC1C2(pinSCC.valore);
           const em = imp.find(x => x.chiave === "email_admin");
           if (em?.valore) setEmailAdmin(em.valore);
+          const it = imp.find(x => x.chiave === "idle_timeout_min");
+          if (it?.valore !== undefined && it?.valore !== null) {
+            const n = parseInt(it.valore, 10);
+            if (!isNaN(n) && n >= 0 && n <= 60) setIdleTimeoutMin(n);
+          }
           const ml = imp.find(x => x.chiave === "mail_list");
           if (ml?.valore) {
             try {
@@ -1205,6 +1211,43 @@ function App() {
     if (!storageReady) return;
     sb.upsert("impostazioni", {chiave:"mail_list", valore: JSON.stringify(mailList)}).catch(()=>{});
   }, [mailList, storageReady]);
+
+  // ── Auto-logout per inattività ────────────────────────────────
+  // Quando l'utente è dentro l'app (screen === "app") e non fa nulla per X minuti,
+  // l'app torna alla schermata Welcome e l'eventuale sessione admin viene chiusa.
+  useEffect(() => {
+    if (screen !== "app") return;            // attivo solo dentro l'app
+    if (!idleTimeoutMin || idleTimeoutMin <= 0) return; // 0 = disattivato
+
+    const timeoutMs = idleTimeoutMin * 60 * 1000;
+    let timer = null;
+
+    const onTimeout = () => {
+      // Torna alla welcome, chiude la sessione admin e svuota i campi di login
+      setAdminUnlocked(false);
+      setLoggedPerson(null);
+      setLoginCodice("");
+      setLoginPin("");
+      setScreen("welcome");
+    };
+
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(onTimeout, timeoutMs);
+    };
+
+    // Eventi che contano come "attività utente"
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"];
+    events.forEach(ev => window.addEventListener(ev, resetTimer, {passive: true}));
+
+    // Avvia il timer la prima volta
+    resetTimer();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach(ev => window.removeEventListener(ev, resetTimer));
+    };
+  }, [screen, idleTimeoutMin]);
 
   const todayKey = now.toISOString().slice(0,10);
   const getRecord = id => records[todayKey]?.[id] || null;
@@ -2736,6 +2779,28 @@ function App() {
                       }}
                       style={{width:200,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:14,padding:"7px 10px",outline:"none"}}/>
                     <div style={{fontSize:11,color:T.muted,marginTop:4}}>Riceve la notifica al cambio del PIN. Si salva automaticamente.</div>
+                  </div>
+                </div>
+                {/* Timeout di inattività */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:4}}>Auto-logout per inattività</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <input type="number" min="0" max="60" defaultValue={idleTimeoutMin}
+                        onBlur={e=>{
+                          let n=parseInt(e.target.value,10);
+                          if(isNaN(n)||n<0)n=0;
+                          if(n>60)n=60;
+                          e.target.value=n;
+                          setIdleTimeoutMin(n);
+                          sb.upsert("impostazioni",{chiave:"idle_timeout_min",valore:String(n)}).catch(()=>{});
+                        }}
+                        style={{width:70,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,fontSize:14,padding:"7px 10px",outline:"none",textAlign:"center"}}/>
+                      <span style={{fontSize:14,color:T.text}}>minuti</span>
+                    </div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:4,maxWidth:380,lineHeight:1.4}}>
+                      Dopo questo tempo senza attività, l'app torna alla schermata di benvenuto e chiude la sessione admin. Imposta <strong style={{color:T.text}}>0</strong> per disattivare (consigliato solo per tablet di postazione fissa).
+                    </div>
                   </div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
