@@ -2101,8 +2101,8 @@ function App() {
                           </div>}
                         </div>
                       </div>
-                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita + conteggio pause — visibile solo al super-admin (proprietario) */}
-                      {rec && superAdminUnlocked && (()=>{
+                      {/* Riga timing: visibile a tutti gli admin (livello 1+). Il box conteggio pause è solo per super-admin */}
+                      {rec && adminUnlocked && (()=>{
                         // Cerca tra i rientri quello che ha un'uscita nella finestra pranzo 12:15-14:15
                         const isLunchTime = (t) => {
                           if (!t) return false;
@@ -2138,7 +2138,7 @@ function App() {
                           </div>
                         );
                         return (<>
-                          <div style={{display:"flex",alignItems:"stretch",padding:"6px 10px",borderTop:`1px dashed ${T.border}`,borderBottom:pauseNormali.length||pausePranzo.length?`none`:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:2}}>
+                          <div style={{display:"flex",alignItems:"stretch",padding:"6px 10px",borderTop:`1px dashed ${T.border}`,borderBottom: (superAdminUnlocked && (pauseNormali.length||pausePranzo.length)) ? `none` : `1px dashed ${T.border}`,background:`${T.bg}80`,gap:2}}>
                             {slot("Entrata",  rec.in,         T.present)}
                             <div style={{width:1,background:T.border,opacity:.5}}/>
                             {slot("Pranzo",   uscitaPranzo,   "#f59e0b")}
@@ -2147,7 +2147,7 @@ function App() {
                             <div style={{width:1,background:T.border,opacity:.5}}/>
                             {slot("Uscita",   uscitaFinale,   T.done)}
                           </div>
-                          {(pauseNormali.length>0 || pausePranzo.length>0) && (
+                          {superAdminUnlocked && (pauseNormali.length>0 || pausePranzo.length>0) && (
                             <div style={{display:"flex",alignItems:"center",padding:"5px 12px",borderBottom:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:14,fontSize:11,flexWrap:"wrap"}}>
                               {pauseNormali.length>0 && (
                                 <span style={{color:T.paused,fontWeight:600}}>
@@ -2222,10 +2222,10 @@ function App() {
                         )}
 
                       </div>
-                      {/* Pause e rientri — visibile solo all'amministratore */}
-                      {adminUnlocked && (pauses.length>0||(rec?.rientri||[]).length>0)&&(
+                      {/* Pause e rientri — Rientri a tutti gli admin, Pause vere solo al super-admin */}
+                      {adminUnlocked && ((superAdminUnlocked && pauses.length>0)||(rec?.rientri||[]).length>0)&&(
                         <div style={{padding:"6px 14px 10px",borderTop:`1px solid ${T.border}`}}>
-                          {pauses.map((pp,j)=>(
+                          {superAdminUnlocked && pauses.map((pp,j)=>(
                             <span key={j} style={{fontSize:11,color:T.textMuted,marginRight:10}}>
                               Pausa {j+1}: {fmtTime(pp.start)}→{pp.end?fmtTime(pp.end):<span style={{color:T.paused}}>in corso</span>}
                               {pp.end&&` (${elapsed(pp.start,pp.end)})`}
