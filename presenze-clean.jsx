@@ -1693,6 +1693,10 @@ function App() {
         .nav-item.active .nav-icon{background:rgba(255,255,255,.2);}
         .nav-item:hover:not(.active) .nav-icon{background:#334155;}
         .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+        .grid-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+        @media(max-width:1300px){
+          .grid-3col{grid-template-columns:1fr 1fr!important;}
+        }
         .mobile-nav{display:none;}
         .mob-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:none;border:none;cursor:pointer;font-family:Arial,sans-serif;}
         .mob-btn span:first-child{font-size:20px;line-height:1;color:#94a3b8;}
@@ -1701,6 +1705,7 @@ function App() {
         @media(max-width:900px){
           .sidebar-full{display:none!important;}
           .grid-2col{grid-template-columns:1fr!important;}
+          .grid-3col{grid-template-columns:1fr!important;}
           .main-content{margin-left:0!important;padding-bottom:75px!important;}
           .mobile-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:#1f2937;border-top:1px solid #374151;z-index:200;padding:6px 0 10px;}
           /* Su schermi stretti, ogni contenuto principale rispetta il bordo destro */
@@ -1997,9 +2002,9 @@ function App() {
                 </div>
               </div>
 
-              {/* Griglia 2 per riga, ordine alfabetico */}
+              {/* Griglia 3 colonne (desktop), 2 colonne (tablet), 1 colonna (mobile), ordine alfabetico */}
               {filtered.length===0&&<div style={{color:T.textMuted,fontSize:15,padding:"24px",textAlign:"center"}}>Nessun risultato trovato.</div>}
-              <div className="grid-2col">
+              <div className="grid-3col">
                 {[...filtered].sort((a,b)=>a.name.localeCompare(b.name,"it")).map((p)=>{
                   const rec=getRecord(p.id); const st=statusOf(rec); const color=STATUS_COLOR[st];
                   const pauses=rec?.pauses||[]; const onPause=pauses.some(x=>!x.end);
@@ -2023,15 +2028,46 @@ function App() {
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <span className="pill" style={{background:`${color}18`,color,fontSize:12}}>{statusLabel(st,rec)}</span>
-                          {rec&&<div style={{fontSize:11,color:T.textMuted,marginTop:3}}>
-                            {rec.in&&<span>In: <strong style={{color:T.present}}>{fmtTime(rec.in)}</strong></span>}
-                            {rec.out&&<span> · Out: <strong style={{color:T.done}}>{fmtTime(rec.out)}</strong></span>}
-                          </div>}
-                          {rec&&!rec.out&&<div style={{fontSize:11,color:T.textMuted,marginTop:1}}>
+                          {rec&&!rec.out&&<div style={{fontSize:11,color:T.textMuted,marginTop:3}}>
                             Ore: <strong>{elapsed(rec.in,null)}</strong>
                           </div>}
                         </div>
                       </div>
+                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita */}
+                      {rec && (()=>{
+                        // Cerca tra i rientri quello che ha un'uscita nella finestra pranzo 12:15-14:15
+                        const isLunchTime = (t) => {
+                          if (!t) return false;
+                          const d = new Date(t);
+                          const minutes = d.getHours()*60 + d.getMinutes();
+                          return minutes >= (12*60+15) && minutes <= (14*60+15);
+                        };
+                        const rientri = rec.rientri || [];
+                        const lunchCycle = rientri.find(r => isLunchTime(r.out));
+                        // Se c'è già una uscita finale e cade nella finestra pranzo, è probabilmente la pausa pranzo non ancora rientrata
+                        const outIsLunch = !lunchCycle && rec.out && isLunchTime(rec.out);
+                        const uscitaPranzo = lunchCycle?.out || (outIsLunch ? rec.out : null);
+                        const rientroPranzo = lunchCycle?.rientro || null;
+                        // L'uscita finale è rec.out solo se NON è la stessa dell'uscita pranzo
+                        const uscitaFinale = rec.out && rec.out !== uscitaPranzo ? rec.out : null;
+                        const slot = (label, time, color2) => (
+                          <div style={{flex:1,minWidth:0,textAlign:"center",padding:"4px 6px"}}>
+                            <div style={{fontSize:10,color:T.textMuted,textTransform:"uppercase",letterSpacing:".04em",marginBottom:2,fontWeight:600}}>{label}</div>
+                            <div style={{fontSize:13,fontWeight:700,color: time ? color2 : T.textMuted,fontFamily:"monospace"}}>{time ? fmtTime(time) : "—"}</div>
+                          </div>
+                        );
+                        return (
+                          <div style={{display:"flex",alignItems:"stretch",padding:"6px 10px",borderTop:`1px dashed ${T.border}`,borderBottom:`1px dashed ${T.border}`,background:`${T.bg}80`,gap:2}}>
+                            {slot("Entrata",  rec.in,         T.present)}
+                            <div style={{width:1,background:T.border,opacity:.5}}/>
+                            {slot("Pranzo",   uscitaPranzo,   "#f59e0b")}
+                            <div style={{width:1,background:T.border,opacity:.5}}/>
+                            {slot("Rientro",  rientroPranzo,  T.present)}
+                            <div style={{width:1,background:T.border,opacity:.5}}/>
+                            {slot("Uscita",   uscitaFinale,   T.done)}
+                          </div>
+                        );
+                      })()}
                       {/* Azioni */}
                       <div style={{padding:"10px 14px",display:"flex",gap:7,alignItems:"center"}}>
                         {!rec&&(
