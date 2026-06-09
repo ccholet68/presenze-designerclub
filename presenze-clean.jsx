@@ -1012,6 +1012,7 @@ function App() {
   const [screen, setScreen] = useState("login"); // login | welcome | app
   const [pinAziendale, setPinAziendale] = useState("1234"); // PIN modificabile da Admin
   const [pinAdmin, setPinAdmin] = useState("9999"); // PIN amministratore (default, cambialo dopo il primo ingresso)
+  const [pinLoginAdmin, setPinLoginAdmin] = useState("9999"); // PIN per accesso admin diretto dalla schermata di login
   const [pinSedeA1, setPinSedeA1] = useState("1234"); // PIN configurazione postazione A1
   const [pinSedeC1C2, setPinSedeC1C2] = useState("1234"); // PIN configurazione postazione C1-C2
   const [adminUnlocked, setAdminUnlocked] = useState(false); // true dopo aver inserito correttamente il PIN admin in questa sessione
@@ -1080,6 +1081,8 @@ function App() {
           if (pin?.valore) setPinAziendale(pin.valore);
           const pinA = imp.find(x => x.chiave === "pin_admin");
           if (pinA?.valore) setPinAdmin(pinA.valore);
+          const pinLA = imp.find(x => x.chiave === "pin_login_admin");
+          if (pinLA?.valore) setPinLoginAdmin(pinLA.valore);
           const pinSA1 = imp.find(x => x.chiave === "pin_sede_a1");
           if (pinSA1?.valore) setPinSedeA1(pinSA1.valore);
           const pinSCC = imp.find(x => x.chiave === "pin_sede_c1c2");
@@ -1515,6 +1518,18 @@ function App() {
             maxLength={8}
             onKeyDown={e=>{
               if(e.key==="Enter"){
+                // Caso speciale: login amministratore con codice "admin"
+                if(loginCodice.trim().toLowerCase()==="admin"){
+                  if(loginPin!==pinLoginAdmin){setLoginError("PIN admin errato");return;}
+                  // Sblocca la sessione admin e associa Cedric come dipendente loggato
+                  const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
+                  setAdminUnlocked(true);
+                  setLoggedPerson(cedric);
+                  setScreen("welcome");
+                  setLoginCodice(""); setLoginPin(""); setLoginError("");
+                  return;
+                }
+                // Login dipendente normale
                 const p=people.find(x=>
                   x.codice?.toUpperCase()===loginCodice.trim().toUpperCase()||
                   initials(x.name).toUpperCase()===loginCodice.trim().toUpperCase()||
@@ -1535,6 +1550,17 @@ function App() {
 
         {/* Pulsante accedi */}
         <button onClick={()=>{
+          // Caso speciale: login amministratore con codice "admin"
+          if(loginCodice.trim().toLowerCase()==="admin"){
+            if(loginPin!==pinLoginAdmin){setLoginError("PIN admin errato");return;}
+            const cedric = people.find(x => x.name === "Cholet Cedric Jacques") || people[0];
+            setAdminUnlocked(true);
+            setLoggedPerson(cedric);
+            setScreen("welcome");
+            setLoginCodice(""); setLoginPin(""); setLoginError("");
+            return;
+          }
+          // Login dipendente normale
           const p=people.find(x=>
             x.codice?.toUpperCase()===loginCodice.trim().toUpperCase()||
             initials(x.name).toUpperCase()===loginCodice.trim().toUpperCase()||
@@ -2027,14 +2053,26 @@ function App() {
                           </div>
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
-                          <span className="pill" style={{background:`${color}18`,color,fontSize:12}}>{statusLabel(st,rec)}</span>
-                          {rec&&!rec.out&&<div style={{fontSize:11,color:T.textMuted,marginTop:3}}>
+                          <span style={{
+                            background:`${color}22`,
+                            color,
+                            fontSize:16,
+                            fontWeight:800,
+                            padding:"6px 14px",
+                            borderRadius:20,
+                            textTransform:"uppercase",
+                            letterSpacing:".03em",
+                            border:`1px solid ${color}55`,
+                            display:"inline-block",
+                            whiteSpace:"nowrap"
+                          }}>{statusLabel(st,rec)}</span>
+                          {rec&&!rec.out&&<div style={{fontSize:11,color:T.textMuted,marginTop:4}}>
                             Ore: <strong>{elapsed(rec.in,null)}</strong>
                           </div>}
                         </div>
                       </div>
-                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita */}
-                      {rec && (()=>{
+                      {/* Riga timing: Entrata · Uscita pranzo · Rientro · Uscita — visibile solo all'amministratore */}
+                      {rec && adminUnlocked && (()=>{
                         // Cerca tra i rientri quello che ha un'uscita nella finestra pranzo 12:15-14:15
                         const isLunchTime = (t) => {
                           if (!t) return false;
@@ -2127,8 +2165,8 @@ function App() {
                         )}
 
                       </div>
-                      {/* Pause e rientri */}
-                      {(pauses.length>0||(rec?.rientri||[]).length>0)&&(
+                      {/* Pause e rientri — visibile solo all'amministratore */}
+                      {adminUnlocked && (pauses.length>0||(rec?.rientri||[]).length>0)&&(
                         <div style={{padding:"6px 14px 10px",borderTop:`1px solid ${T.border}`}}>
                           {pauses.map((pp,j)=>(
                             <span key={j} style={{fontSize:11,color:T.textMuted,marginRight:10}}>
@@ -2813,6 +2851,39 @@ function App() {
                   }}
                     style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
                     🛡️ Cambia PIN Admin
+                  </button>
+                </div>
+                {/* Cambio PIN Login Admin (per accesso diretto dalla schermata di login con codice "admin") */}
+                <div style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.muted,marginBottom:2}}>PIN Login Admin diretto</div>
+                    <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"monospace",letterSpacing:".1em"}}>{"•".repeat(pinLoginAdmin.length)}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2,maxWidth:380,lineHeight:1.4}}>
+                      Permette di entrare direttamente in modalità amministratore dalla schermata di login: scrivi <strong style={{color:T.text}}>admin</strong> come codice e questo PIN come password.
+                    </div>
+                  </div>
+                  <button className="btn" onClick={async ()=>{
+                    const newPin=window.prompt("Inserisci il nuovo PIN per il login admin diretto (4-8 cifre):");
+                    if(!newPin) return;
+                    if(!/^\d{4,8}$/.test(newPin)){alert("Il PIN deve essere di 4-8 cifre numeriche.");return;}
+                    if(newPin===pinAziendale){alert("⚠️ Il PIN deve essere diverso dal PIN aziendale.");return;}
+                    const vecchioPin = pinLoginAdmin;
+                    setPinLoginAdmin(newPin);
+                    sb.upsert("impostazioni", {chiave:"pin_login_admin", valore:newPin}).catch(()=>{});
+                    if(emailAdmin){
+                      try {
+                        await sendEmailCambioPin(emailAdmin, vecchioPin, newPin);
+                        alert("✅ PIN login admin aggiornato! Notifica inviata a "+emailAdmin);
+                      } catch(e) {
+                        console.warn("Errore invio email cambio PIN login admin:", e);
+                        alert("✅ PIN login admin aggiornato, ma l'invio dell'email è fallito.");
+                      }
+                    } else {
+                      alert("✅ PIN login admin aggiornato!");
+                    }
+                  }}
+                    style={{padding:"7px 14px",background:T.accent,color:"#fff",border:"none",fontSize:13}}>
+                    🔓 Cambia PIN Login Admin
                   </button>
                 </div>
                 {/* Cambio PIN Sede A1 */}
