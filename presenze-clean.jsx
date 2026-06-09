@@ -2487,21 +2487,69 @@ function App() {
                     const inPausa=people.filter(p=>statusOf(getRecord(p.id))==="paused");
                     const ora=new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});
                     const data=new Date().toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+
+                    // Raggruppa persone per sede (usando il record del giorno o, in mancanza, la sede di default del reparto)
+                    const sedeDi = (p) => {
+                      const r = getRecord(p.id);
+                      return r?.sede || SEDE_DEFAULT_REPARTO[p?.deptId] || "a1";
+                    };
+                    const groupBySede = (lista) => {
+                      const out = {};
+                      SEDI.forEach(s => out[s.id] = []);
+                      lista.forEach(p => { const s = sedeDi(p); if(!out[s]) out[s]=[]; out[s].push(p); });
+                      return out;
+                    };
+                    const sedeName = (id) => {
+                      const s = SEDI.find(x=>x.id===id);
+                      return s ? `${s.name} (${s.desc})` : id;
+                    };
+
+                    const presPerSede = groupBySede(presenti);
+                    const pausPerSede = groupBySede(inPausa);
+
                     let msg = `Presenze Designer Club Srl\n${data} — ore ${ora}\n\n`;
-                    msg += `✅ PRESENTI (${presenti.length}):\n`;
-                    presenti.forEach(p=>{
-                      const rec=getRecord(p.id);
-                      const dept=depts.find(d=>d.id===p.deptId);
-                      msg+=`• ${p.name}${dept?" ("+dept.name+")":""} — entrata ${rec?.in?fmtTime(rec.in):"—"}\n`;
+
+                    // Riepilogo per sede in cima
+                    msg += `📊 RIEPILOGO PER SEDE:\n`;
+                    SEDI.forEach(s => {
+                      const pres = (presPerSede[s.id]||[]).length;
+                      const paus = (pausPerSede[s.id]||[]).length;
+                      msg += `• ${sedeName(s.id)}: ${pres} presenti, ${paus} in pausa\n`;
                     });
-                    msg+=`\n⏸ IN PAUSA (${inPausa.length}):\n`;
-                    inPausa.forEach(p=>{
-                      const rec=getRecord(p.id);
-                      const dept=depts.find(d=>d.id===p.deptId);
-                      const ul=(rec?.pauses||[]).slice(-1)[0];
-                      msg+=`• ${p.name}${dept?" ("+dept.name+")":""} — pausa dalle ${ul?.start?fmtTime(ul.start):"—"}\n`;
+                    msg += `\n`;
+
+                    // Dettaglio presenti per sede
+                    msg += `✅ PRESENTI (${presenti.length} totali):\n`;
+                    SEDI.forEach(s => {
+                      const lista = presPerSede[s.id] || [];
+                      if (lista.length === 0) return;
+                      msg += `\n📍 ${sedeName(s.id)} — ${lista.length} ${lista.length===1?'persona':'persone'}:\n`;
+                      lista.forEach(p => {
+                        const rec = getRecord(p.id);
+                        const dept = depts.find(d=>d.id===p.deptId);
+                        msg += `  • ${p.name}${dept?" ("+dept.name+")":""} — entrata ${rec?.in?fmtTime(rec.in):"—"}\n`;
+                      });
                     });
-                    msg+=`\nTotale in azienda: ${presenti.length+inPausa.length} persone\n\nInviato da Presenze.App — Designer Club Srl`;
+
+                    // Dettaglio in pausa per sede
+                    msg += `\n⏸ IN PAUSA (${inPausa.length} totali):\n`;
+                    if (inPausa.length === 0) {
+                      msg += `  Nessuno in pausa.\n`;
+                    } else {
+                      SEDI.forEach(s => {
+                        const lista = pausPerSede[s.id] || [];
+                        if (lista.length === 0) return;
+                        msg += `\n📍 ${sedeName(s.id)} — ${lista.length} ${lista.length===1?'persona':'persone'}:\n`;
+                        lista.forEach(p => {
+                          const rec = getRecord(p.id);
+                          const dept = depts.find(d=>d.id===p.deptId);
+                          const ul = (rec?.pauses||[]).slice(-1)[0];
+                          msg += `  • ${p.name}${dept?" ("+dept.name+")":""} — pausa dalle ${ul?.start?fmtTime(ul.start):"—"}\n`;
+                        });
+                      });
+                    }
+
+                    msg += `\n────────────────────\nTotale in azienda: ${presenti.length+inPausa.length} persone\n\nInviato da Presenze.App — Designer Club Srl`;
                     const subject=`Presenze Designer Club — ${data} ore ${ora}`;
                     try {
                       await Promise.all(destinatari.map(to=>sendEmailJS(to, subject, msg)));
@@ -2560,6 +2608,60 @@ function App() {
               {(()=>{
                 const presenti = people.filter(p=>statusOf(getRecord(p.id))==="present");
                 const inPausa  = people.filter(p=>statusOf(getRecord(p.id))==="paused");
+
+                // Determina la sede effettiva di una persona (dalla timbratura odierna, altrimenti dal default reparto)
+                const sedeDi = (p) => {
+                  const r = getRecord(p.id);
+                  return r?.sede || SEDE_DEFAULT_REPARTO[p?.deptId] || "a1";
+                };
+                const groupBySede = (lista) => {
+                  const out = {};
+                  SEDI.forEach(s => out[s.id] = []);
+                  lista.forEach(p => { const s = sedeDi(p); if(!out[s]) out[s]=[]; out[s].push(p); });
+                  return out;
+                };
+
+                const presPerSede = groupBySede(presenti);
+                const pausPerSede = groupBySede(inPausa);
+
+                // Renderizza una persona nella lista (presente o in pausa)
+                const renderPerson = (p, kind, isLast) => {
+                  const rec = getRecord(p.id);
+                  const dept = depts.find(d=>d.id===p.deptId);
+                  const pt = PERSON_TYPES.find(x=>x.id===p.type);
+                  const ultimaPausa = kind==="paused" ? (rec?.pauses||[]).slice(-1)[0] : null;
+                  return (
+                    <div key={p.id} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",borderBottom:!isLast?`1px solid ${T.border}`:"none"}}>
+                      <div style={{width:40,height:40,borderRadius:10,background:`${pt.color}18`,color:pt.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>
+                        {initials(p.name)}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:15,fontWeight:600,color:T.text}}>{p.name}</div>
+                        <div style={{fontSize:12,color:T.muted,marginTop:2}}>{p.role}{dept?` · ${dept.name}`:""}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        {kind==="present" ? (<>
+                          <div style={{fontSize:13,color:T.present,fontWeight:600}}>{rec?.in ? `Entrata ${fmtTime(rec.in)}` : ""}</div>
+                          <div style={{fontSize:12,color:T.muted,marginTop:2}}>{rec?.in ? elapsed(rec.in, null) : ""}</div>
+                        </>) : (<>
+                          <div style={{fontSize:13,color:T.paused,fontWeight:600}}>{ultimaPausa?.start ? `Pausa dalle ${fmtTime(ultimaPausa.start)}` : "In pausa"}</div>
+                          <div style={{fontSize:12,color:T.muted,marginTop:2}}>{ultimaPausa?.start ? elapsed(ultimaPausa.start, null) : ""}</div>
+                        </>)}
+                      </div>
+                    </div>
+                  );
+                };
+
+                // Renderizza una sotto-intestazione di sede
+                const sedeHeader = (sede, count) => (
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",background:`${sede.color}10`,borderBottom:`1px solid ${T.border}`,borderTop:`1px solid ${T.border}`}}>
+                    <span style={{fontSize:14}}>📍</span>
+                    <span style={{fontSize:13,fontWeight:700,color:sede.color,textTransform:"uppercase",letterSpacing:".03em"}}>{sede.name}</span>
+                    <span style={{fontSize:11,color:T.muted}}>· {sede.desc}</span>
+                    <span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:sede.color,background:`${sede.color}22`,borderRadius:12,padding:"1px 10px"}}>{count}</span>
+                  </div>
+                );
+
                 return (<>
                   {/* Sezione Presenti */}
                   <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
@@ -2570,27 +2672,13 @@ function App() {
                     </div>
                     {presenti.length===0
                       ? <div style={{padding:"20px",textAlign:"center",color:T.muted,fontSize:14}}>Nessuno presente al momento</div>
-                      : presenti.map((p,i)=>{
-                          const rec=getRecord(p.id);
-                          const dept=depts.find(d=>d.id===p.deptId);
-                          const pt=PERSON_TYPES.find(x=>x.id===p.type);
+                      : SEDI.map(s => {
+                          const lista = presPerSede[s.id] || [];
+                          if (lista.length === 0) return null;
                           return (
-                            <div key={p.id} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",borderBottom:i<presenti.length-1?`1px solid ${T.border}`:"none"}}>
-                              <div style={{width:40,height:40,borderRadius:10,background:`${pt.color}18`,color:pt.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>
-                                {initials(p.name)}
-                              </div>
-                              <div style={{flex:1}}>
-                                <div style={{fontSize:15,fontWeight:600,color:T.text}}>{p.name}</div>
-                                <div style={{fontSize:12,color:T.muted,marginTop:2}}>{p.role}{dept?` · ${dept.name}`:""}</div>
-                              </div>
-                              <div style={{textAlign:"right"}}>
-                                <div style={{fontSize:13,color:T.present,fontWeight:600}}>
-                                  {rec?.in ? `Entrata ${fmtTime(rec.in)}` : ""}
-                                </div>
-                                <div style={{fontSize:12,color:T.muted,marginTop:2}}>
-                                  {rec?.in ? elapsed(rec.in, null) : ""}
-                                </div>
-                              </div>
+                            <div key={s.id} style={{display:"contents"}}>
+                              {sedeHeader(s, lista.length)}
+                              {lista.map((p,i) => renderPerson(p, "present", i === lista.length-1))}
                             </div>
                           );
                         })
@@ -2606,28 +2694,13 @@ function App() {
                     </div>
                     {inPausa.length===0
                       ? <div style={{padding:"20px",textAlign:"center",color:T.muted,fontSize:14}}>Nessuno in pausa al momento</div>
-                      : inPausa.map((p,i)=>{
-                          const rec=getRecord(p.id);
-                          const dept=depts.find(d=>d.id===p.deptId);
-                          const pt=PERSON_TYPES.find(x=>x.id===p.type);
-                          const ultimaPausa=(rec?.pauses||[]).slice(-1)[0];
+                      : SEDI.map(s => {
+                          const lista = pausPerSede[s.id] || [];
+                          if (lista.length === 0) return null;
                           return (
-                            <div key={p.id} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",borderBottom:i<inPausa.length-1?`1px solid ${T.border}`:"none"}}>
-                              <div style={{width:40,height:40,borderRadius:10,background:`${pt.color}18`,color:pt.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>
-                                {initials(p.name)}
-                              </div>
-                              <div style={{flex:1}}>
-                                <div style={{fontSize:15,fontWeight:600,color:T.text}}>{p.name}</div>
-                                <div style={{fontSize:12,color:T.muted,marginTop:2}}>{p.role}{dept?` · ${dept.name}`:""}</div>
-                              </div>
-                              <div style={{textAlign:"right"}}>
-                                <div style={{fontSize:13,color:T.paused,fontWeight:600}}>
-                                  {ultimaPausa?.start ? `Pausa dalle ${fmtTime(ultimaPausa.start)}` : "In pausa"}
-                                </div>
-                                <div style={{fontSize:12,color:T.muted,marginTop:2}}>
-                                  {ultimaPausa?.start ? elapsed(ultimaPausa.start, null) : ""}
-                                </div>
-                              </div>
+                            <div key={s.id} style={{display:"contents"}}>
+                              {sedeHeader(s, lista.length)}
+                              {lista.map((p,i) => renderPerson(p, "paused", i === lista.length-1))}
                             </div>
                           );
                         })
