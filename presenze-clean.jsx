@@ -25,6 +25,25 @@ const SEDE_DEFAULT_REPARTO = {
   pro:  "c1c2",
 };
 
+// ── Orario contrattuale di default ───────────────────────────────
+const DEFAULT_ORARIO_ENTRATA = "08:30";
+const DEFAULT_ORARIO_USCITA  = "17:30";
+const DEFAULT_GIORNI_LAV     = [1,2,3,4,5]; // Lun-Ven (0=domenica, 6=sabato)
+const GIORNI_NOMI = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+
+// Helper: legge orario entrata/uscita con fallback al default
+const getOrarioEntrata = (p) => p?.orarioEntrata || DEFAULT_ORARIO_ENTRATA;
+const getOrarioUscita  = (p) => p?.orarioUscita  || DEFAULT_ORARIO_USCITA;
+const getGiorniLav     = (p) => Array.isArray(p?.giorniLavorativi) ? p.giorniLavorativi : DEFAULT_GIORNI_LAV;
+
+// Helper: prende "HH:MM" e restituisce una Date oggi a quell'ora
+const orarioToDateOggi = (hhmm) => {
+  const [h,m] = (hhmm||"00:00").split(":").map(n => parseInt(n,10) || 0);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
 
 // ── Supabase ─────────────────────────────────────────────────────
 const SUPABASE_URL = "https://nigeqxjjnjethrilmyao.supabase.co";
@@ -2058,6 +2077,82 @@ function App() {
                 </div>
               </div>
 
+              {/* Pulsanti chiusura automatica per sede — visibili solo all'amministratore */}
+              {adminUnlocked && (()=>{
+                // Conta quante schede sono aperte per ciascuna sede
+                const apertePerSede = {};
+                SEDI.forEach(s => apertePerSede[s.id] = 0);
+                people.forEach(p => {
+                  const r = getRecord(p.id);
+                  if (!r || !r.in || r.out) return; // nessuna entrata o già uscito
+                  const sede = r.sede || SEDE_DEFAULT_REPARTO[p.deptId] || "a1";
+                  apertePerSede[sede] = (apertePerSede[sede] || 0) + 1;
+                });
+
+                const chiudiPerSede = (sedeId) => {
+                  const sedeName = SEDI.find(s=>s.id===sedeId)?.name || sedeId;
+                  // Trova tutti i dipendenti con scheda aperta in quella sede
+                  const daChiudere = people.filter(p => {
+                    const r = getRecord(p.id);
+                    if (!r || !r.in || r.out) return false;
+                    const sede = r.sede || SEDE_DEFAULT_REPARTO[p.deptId] || "a1";
+                    return sede === sedeId;
+                  });
+                  if (daChiudere.length === 0) {
+                    alert(`Nessuna scheda aperta da chiudere nella ${sedeName}.`);
+                    return;
+                  }
+                  // Conferma esplicita prima di applicare
+                  const elenco = daChiudere.map(p => `• ${p.name} → uscita alle ${getOrarioUscita(p)}`).join("\n");
+                  const ok = window.confirm(`Stai per chiudere ${daChiudere.length} ${daChiudere.length===1?"scheda":"schede"} aperte della ${sedeName}.\n\nVerrà registrata un'uscita di "chiusura automatica" all'orario contrattuale di ciascun dipendente:\n\n${elenco}\n\nProcedere?`);
+                  if (!ok) return;
+                  // Applica la chiusura
+                  setRecords(prev => {
+                    const dayRec = {...(prev[todayKey] || {})};
+                    daChiudere.forEach(p => {
+                      const rec = dayRec[p.id];
+                      if (!rec) return;
+                      const orarioUscitaPersonale = orarioToDateOggi(getOrarioUscita(p));
+                      // Se ci sono pause aperte, le chiudo all'orario di uscita
+                      const newPauses = (rec.pauses || []).map(pp => pp.end ? pp : {...pp, end: orarioUscitaPersonale});
+                      dayRec[p.id] = {
+                        ...rec,
+                        pauses: newPauses,
+                        out: orarioUscitaPersonale,
+                        chiusuraAutomatica: true,
+                        chiusuraAutomaticaTs: new Date(),
+                      };
+                    });
+                    return {...prev, [todayKey]: dayRec};
+                  });
+                  alert(`✅ Chiuse ${daChiudere.length} ${daChiudere.length===1?"scheda":"schede"} della ${sedeName}.`);
+                };
+
+                return (
+                  <div style={{background:T.surface,border:`1px dashed ${T.border}`,borderRadius:12,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                    <div style={{flex:"1 1 200px",minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:2}}>🔚 Chiusura automatica giornata</div>
+                      <div style={{fontSize:11,color:T.muted}}>Chiude le schede ancora aperte usando l'orario di uscita contrattuale di ciascun dipendente. Le uscite verranno marcate come "chiusura automatica".</div>
+                    </div>
+                    {SEDI.map(s => (
+                      <button key={s.id} className="btn" onClick={()=>chiudiPerSede(s.id)}
+                        disabled={apertePerSede[s.id] === 0}
+                        style={{
+                          padding:"8px 14px",
+                          background: apertePerSede[s.id]>0 ? "#ef4444" : T.border,
+                          color: apertePerSede[s.id]>0 ? "#fff" : T.muted,
+                          fontSize:13,
+                          cursor: apertePerSede[s.id]>0 ? "pointer" : "not-allowed",
+                          opacity: apertePerSede[s.id]>0 ? 1 : 0.55,
+                          whiteSpace:"nowrap"
+                        }}>
+                        🔚 All out {s.name} {apertePerSede[s.id]>0 ? `(${apertePerSede[s.id]})` : ""}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* Griglia 3 colonne (desktop), 2 colonne (tablet), 1 colonna (mobile), ordine alfabetico */}
               {filtered.length===0&&<div style={{color:T.textMuted,fontSize:15,padding:"24px",textAlign:"center"}}>Nessun risultato trovato.</div>}
               <div className="grid-3col">
@@ -2214,6 +2309,11 @@ function App() {
                         {rec?.out&&(
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                             <span style={{fontSize:13,color:T.accent,fontWeight:600}}>✓ Uscita: {fmtTime(rec.out)} — {elapsed(rec.in,rec.out)}</span>
+                            {rec.chiusuraAutomatica && (
+                              <span title="L'uscita è stata registrata tramite chiusura automatica (il dipendente non ha timbrato)" style={{fontSize:11,color:"#ef4444",background:"#ef444415",border:`1px solid #ef444455`,borderRadius:10,padding:"2px 8px",fontWeight:700,whiteSpace:"nowrap"}}>
+                                🔚 Chiusura automatica
+                              </span>
+                            )}
                             <button className="btn" onClick={()=>handleReEntry(p.id)}
                               style={{padding:"6px 12px",background:`${T.present}18`,color:T.present,border:`1px solid ${T.present}55`,fontSize:13,fontWeight:600}}>
                               ↩ Rientro
@@ -3559,6 +3659,50 @@ function App() {
                                   <input type="date" value={p.dataAssunzione||""} onChange={e=>setPeople(prev=>prev.map(x=>x.id===p.id?{...x,dataAssunzione:e.target.value}:x))}
                                     style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:14,outline:"none"}}/>
                                 </div>
+                              </div>
+                              {/* Orario contrattuale */}
+                              <div style={{fontSize:11,color:T.accent,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:12}}>Orario contrattuale</div>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                                <div>
+                                  <div style={{fontSize:12,color:T.muted,marginBottom:4,fontWeight:600}}>Orario entrata</div>
+                                  <input type="time" value={p.orarioEntrata||DEFAULT_ORARIO_ENTRATA} onChange={e=>setPeople(prev=>prev.map(x=>x.id===p.id?{...x,orarioEntrata:e.target.value}:x))}
+                                    style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:14,outline:"none",fontFamily:"monospace"}}/>
+                                </div>
+                                <div>
+                                  <div style={{fontSize:12,color:T.muted,marginBottom:4,fontWeight:600}}>Orario uscita</div>
+                                  <input type="time" value={p.orarioUscita||DEFAULT_ORARIO_USCITA} onChange={e=>setPeople(prev=>prev.map(x=>x.id===p.id?{...x,orarioUscita:e.target.value}:x))}
+                                    style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:14,outline:"none",fontFamily:"monospace"}}/>
+                                </div>
+                              </div>
+                              <div style={{marginBottom:14}}>
+                                <div style={{fontSize:12,color:T.muted,marginBottom:6,fontWeight:600}}>Giorni lavorativi</div>
+                                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                                  {[1,2,3,4,5,6,0].map(g=>{
+                                    const giorniSel = Array.isArray(p.giorniLavorativi) ? p.giorniLavorativi : DEFAULT_GIORNI_LAV;
+                                    const attivo = giorniSel.includes(g);
+                                    return (
+                                      <button key={g} type="button" onClick={()=>{
+                                        setPeople(prev=>prev.map(x=>{
+                                          if(x.id!==p.id) return x;
+                                          const cur = Array.isArray(x.giorniLavorativi) ? x.giorniLavorativi : DEFAULT_GIORNI_LAV;
+                                          const next = attivo ? cur.filter(d=>d!==g) : [...cur, g].sort();
+                                          return {...x, giorniLavorativi: next};
+                                        }));
+                                      }} style={{
+                                        padding:"6px 12px",
+                                        borderRadius:6,
+                                        border:`1px solid ${attivo?T.accent:T.border}`,
+                                        background: attivo?T.accent:"transparent",
+                                        color: attivo?"#fff":T.text,
+                                        cursor:"pointer",
+                                        fontSize:13,
+                                        fontWeight:600,
+                                        minWidth:42
+                                      }}>{GIORNI_NOMI[g]}</button>
+                                    );
+                                  })}
+                                </div>
+                                <div style={{fontSize:11,color:T.muted,marginTop:6}}>Clicca un giorno per attivarlo/disattivarlo. Default: Lun-Ven.</div>
                               </div>
                               <button onClick={()=>setEditingPerson(null)}
                                 style={{padding:"8px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>
